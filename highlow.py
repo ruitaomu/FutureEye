@@ -14,7 +14,7 @@ from tensorflow.random import set_seed
 N_STEPS = 8
 FEATURES = 2
 FEATURE_OFFSET = 1
-IGNORE_SAMPLE_FINISH_WITH_MINMAX = True
+IGNORE_SAMPLE_FINISH_WITH_MINMAX = False
 
 train_set_X_list = list()
 train_set_y_list = list()
@@ -53,16 +53,21 @@ def process_data_file(data_file_name):
     #print(dataset.describe())
 
     #找出给定图中所有的高低点位
-    all_high_points = dataset.loc[N_STEPS:len(dataset)-FEATURE_OFFSET-1,"High"].to_numpy()
-    all_low_points  = dataset.loc[N_STEPS:len(dataset)-FEATURE_OFFSET-1,"Low"].to_numpy()
+    #all_high_points = dataset.loc[N_STEPS:len(dataset)-FEATURE_OFFSET-1,"High"].to_numpy()
+    #all_low_points  = dataset.loc[N_STEPS:len(dataset)-FEATURE_OFFSET-1,"Low"].to_numpy()
+    all_close_points  = dataset.loc[N_STEPS:len(dataset)-FEATURE_OFFSET-1,"Close"].to_numpy()
 
     #找出全图最高和最低点的值
-    highest_value = np.max(all_high_points)
-    lowest_value  = np.min(all_low_points)
+    #highest_value = np.max(all_high_points)
+    #lowest_value  = np.min(all_low_points)
+    highest_value = np.max(all_close_points)
+    lowest_value  = np.min(all_close_points)
 
     #找出最高和最低点所在的位置，保存在数组中。有可能不止一个最高或最低点
-    high_indeces = np.where(all_high_points == highest_value)[0]+N_STEPS
-    low_indeces = np.where(all_low_points == lowest_value)[0]+N_STEPS
+    #high_indeces = np.where(all_high_points == highest_value)[0]+N_STEPS
+    #low_indeces = np.where(all_low_points == lowest_value)[0]+N_STEPS
+    high_indeces = np.where(all_close_points == highest_value)[0]+N_STEPS
+    low_indeces = np.where(all_close_points == lowest_value)[0]+N_STEPS
 
     #如果几个最高点或最低点紧挨着，只保留连续的第一个位置
     result = []
