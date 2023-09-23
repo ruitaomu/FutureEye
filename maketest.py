@@ -1,7 +1,8 @@
 import random
+import config
 
 # 打开文本文件
-with open("input.txt", "r") as file:
+with open(config.RAW_DATA_FILE, "r") as file:
     # 读取第一行并保存
     first_line = file.readline()
 
@@ -15,7 +16,7 @@ with open("input.txt", "r") as file:
     selected_lines = lines[start_line : start_line + 160]
 
     # 构建当前文件的文件名
-    file_name = "test.txt"
+    file_name = config.TEST_FILE_NAME
 
     # 将第一行和选取的行保存到新的文件
     with open(file_name, "w") as output_file:

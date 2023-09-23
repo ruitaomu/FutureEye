@@ -1,22 +1,33 @@
 # Importing the libraries
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import mplfinance as mpf
+import matplotlib.pyplot as plt
+import config
 
 from sklearn.preprocessing import MinMaxScaler, StandardScaler 
 from sklearn.metrics import mean_squared_error
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, LSTM, Dropout, GRU, Bidirectional
+from tensorflow.keras.layers import Dense, LSTM, Dropout, GRU, Bidirectional, SimpleRNN
 from tensorflow.keras.optimizers import SGD
 from tensorflow.random import set_seed
 
-N_STEPS = 8
-FEATURES = 2
-FEATURE_OFFSET = 1
-IGNORE_SAMPLE_FINISH_WITH_MINMAX = False
+TOTAL_SAMPLE_FILES = config.TOTAL_SAMPLE_FILES
+FEATURES_SET = config.FEATURES_SET
+N_STEPS = config.N_STEPS
+SAMPLE_FILE_PATTERN = config.SAMPLE_FILE_PATTERN
+TEST_FILE_NAME=config.TEST_FILE_NAME
+MODEL_FILE_NAME=config.MODEL_FILE_NAME
+FEATURE_OFFSET=config.FEATURE_OFFSET
+
 AUTO_MARK = True
+EPOCHS = 34
+BATCH_SIZE = 64
+MODEL_TYPE = "SimpleRNN" #SimpleRNN/GRU/LSTM
+
+IGNORE_SAMPLE_FINISH_WITH_MINMAX = True
+FEATURES = len(FEATURES_SET)
 
 train_set_X_list = list()
 train_set_y_list = list()
@@ -60,6 +71,7 @@ def process_data_file(data_file_name):
     #print(dataset.head())
     #print(dataset.describe())
 
+    global IGNORE_SAMPLE_FINISH_WITH_MINMAX
     global AUTO_MARK
     if AUTO_MARK == False and 'Top' in dataset.columns and 'Bottom' in dataset.columns:
         AUTO_MARK = False
@@ -84,14 +96,18 @@ def process_data_file(data_file_name):
         high_indeces = np.where(all_close_points == highest_value)[0]+N_STEPS
         low_indeces = np.where(all_close_points == lowest_value)[0]+N_STEPS
     else:
-        all_high_points  = dataset.loc[N_STEPS:len(dataset)-FEATURE_OFFSET-1,"Top"].to_numpy()
-        all_low_points  = dataset.loc[N_STEPS:len(dataset)-FEATURE_OFFSET-1,"Bottom"].to_numpy()
+        all_high_points  = dataset.loc[:,"Top"].to_numpy()
+        all_low_points  = dataset.loc[:,"Bottom"].to_numpy()
         high_indeces = np.where(all_high_points == 1)[0]+N_STEPS
         low_indeces = np.where(all_low_points == 1)[0]+N_STEPS
+        IGNORE_SAMPLE_FINISH_WITH_MINMAX = False
 
     #如果几个最高点或最低点紧挨着，只保留连续的第一个位置
     result = []
     for i in range(len(high_indeces)):
+        if (IGNORE_SAMPLE_FINISH_WITH_MINMAX == True) and (high_indeces[i] == len(dataset)-N_STEPS-FEATURE_OFFSET-1):
+            continue
+
         if i == 0 or high_indeces[i] != high_indeces[i-1] + 1:
             result.append(high_indeces[i])
 
@@ -99,6 +115,9 @@ def process_data_file(data_file_name):
 
     result = []
     for i in range(len(low_indeces)):
+        if (IGNORE_SAMPLE_FINISH_WITH_MINMAX == True) and (low_indeces[i] == len(dataset)-N_STEPS-FEATURE_OFFSET-1):
+            continue
+
         if i == 0 or low_indeces[i] != low_indeces[i-1] + 1:
             result.append(low_indeces[i])
 
@@ -106,44 +125,39 @@ def process_data_file(data_file_name):
 
     
     #根据找出的所有高低点位出现的时间点，采样在此时间点之前N_STEPS个时段的开盘和收盘价，存入列表
-    scaled_high_openclose = list()
-    scaled_low_openclose = list()
-    unscaled_high_openclose = list()
-    unscaled_low_openclose = list()
-
+    scaled_high_samples = list()
+    scaled_low_samples = list()
+    unscaled_high_samples = list()
+    unscaled_low_samples = list()
 
     for i in range(len(high_indeces)):
-        h = dataset.loc[high_indeces[i]-N_STEPS+FEATURE_OFFSET : high_indeces[i]-1+FEATURE_OFFSET, ["Open", "Close"]].to_numpy().flatten().reshape(-1, 1)
+        h = dataset.loc[high_indeces[i]-N_STEPS+FEATURE_OFFSET : high_indeces[i]-1+FEATURE_OFFSET, FEATURES_SET].to_numpy().flatten().reshape(-1, 1)
         #设定缩放器
         scaler = MinMaxScaler(feature_range=(0,1))
         scaler.fit(np.array([np.min(h), np.max(h)]).reshape(-1, 1)) 
-        unscaled_high_openclose.append(np.array(h).reshape(-1, 2))
+        unscaled_high_samples.append(np.array(h).reshape(-1, FEATURES))
         h = scaler.transform(h) #缩放
-        if (not IGNORE_SAMPLE_FINISH_WITH_MINMAX) or (h[N_STEPS*2-1] != 1.0 and h[N_STEPS*2-2] != 1.0):
-            #当IGNORE_SAMPLE_FINISH_WITH_MINMAX为True，那么如果最高的开盘价或收盘价出现在这个采样时间段的末尾，则该段采样被忽略
-            scaled_high_openclose.append(np.array(h).reshape(-1, 2))
+        scaled_high_samples.append(np.array(h).reshape(-1, FEATURES))
 
     for i in range(len(low_indeces)):
-        l = dataset.loc[low_indeces[i]-N_STEPS+FEATURE_OFFSET : low_indeces[i]-1+FEATURE_OFFSET, ["Open", "Close"]].to_numpy().flatten().reshape(-1, 1)
+        l = dataset.loc[low_indeces[i]-N_STEPS+FEATURE_OFFSET : low_indeces[i]-1+FEATURE_OFFSET, FEATURES_SET].to_numpy().flatten().reshape(-1, 1)
         #设定缩放器
         scaler = MinMaxScaler(feature_range=(0,1))
         scaler.fit(np.array([np.min(l), np.max(l)]).reshape(-1, 1))    
-        unscaled_low_openclose.append(np.array(l).reshape(-1, 2))
+        unscaled_low_samples.append(np.array(l).reshape(-1, FEATURES))
         l = scaler.transform(l) #缩放
-        if (not IGNORE_SAMPLE_FINISH_WITH_MINMAX) or (l[N_STEPS*2-1] != 0.0 and l[N_STEPS*2-2] != 0.0):
-            #当IGNORE_SAMPLE_FINISH_WITH_MINMAX为True，那么如果最低的开盘价或收盘价出现在这个采样时间段的末尾，则该段采样被忽略
-            scaled_low_openclose.append(np.array(l).reshape(-1, 2))
-
+        scaled_low_samples.append(np.array(l).reshape(-1, FEATURES))
+        
     #将该图片里的所有高点采样数据加入训练集
-    add_train_set(scaled_high_openclose, 1.00)
-    #将该图片里的所有高点采样数据加入训练集
-    add_train_set(scaled_low_openclose, -1.00)
+    add_train_set(scaled_high_samples, 1.00)
+    #将该图片里的所有低点采样数据加入训练集
+    add_train_set(scaled_low_samples, 0.00)
 
 
-file_pattern = "data/highlow-{}.txt"
+file_pattern = SAMPLE_FILE_PATTERN
 
 #训练集的数据文件总数
-num_files = 2000
+num_files = TOTAL_SAMPLE_FILES
 
 if AUTO_MARK == True:
     print("Using AUTO MARK, find out the top/bottom points automatically")
@@ -159,33 +173,84 @@ for i in range(1, num_files + 1):
 
 print(f"All training data files have been processed, total {len(train_set_y_list)} samples, {n_top_samples} Top samples, {n_bottom_samples} Bottom samples")
 
-# The LSTM architecture
-model_lstm = Sequential()
-model_lstm.add(LSTM(units=125, activation="tanh", input_shape=(N_STEPS, FEATURES)))
-model_lstm.add(Dense(units=1))
-# Compiling the model
-model_lstm.compile(optimizer="RMSprop", loss="mse")
-model_lstm.summary()
+def create_LSTM_model():
+    # The LSTM architecture
+    model = Sequential()
+    model.add(LSTM(units=125, activation="tanh", input_shape=(N_STEPS, FEATURES), return_sequences=True))
+    model.add(LSTM(units=125, activation="tanh"))
+    model.add(Dense(units=1, activation="sigmoid"))
+    # Compiling the model
+    model.compile(optimizer="RMSprop", loss="mse", metrics = ['accuracy'] )
+    model.summary()
 
+    return model
 
-model_gru = Sequential()
-model_gru.add(GRU(units=125, activation="tanh", input_shape=(N_STEPS, FEATURES), return_sequences=True))
-model_gru.add(GRU(units=125, activation="tanh"))
-model_gru.add(Dense(units=1))
-# Compiling the RNN
-model_gru.compile(optimizer="RMSprop", loss="mse")
-model_gru.summary()
+def create_SimpleRNN_model():
+    model = Sequential()
+    model.add(SimpleRNN(units=256, activation="relu", input_shape=(N_STEPS, FEATURES), unroll=True, return_sequences=True))
+    model.add(SimpleRNN(units=256, activation="relu", unroll=True))
+    model.add(Dense(units=1, activation="sigmoid"))
+    # Compiling the model
+    model.compile(optimizer="RMSprop", loss="mse", metrics = ['accuracy'])
+    model.summary()
+
+    return model
+
+def create_GRU_model():
+    model = Sequential()
+    model.add(GRU(units=125, activation="tanh", input_shape=(N_STEPS, FEATURES), return_sequences=True))
+    model.add(GRU(units=125, activation="tanh"))
+    model.add(Dense(units=1, activation="sigmoid"))
+    # Compiling the model
+    model.compile(optimizer="RMSprop", loss="mse", metrics = ['accuracy'])
+    model.summary()
+
+    return model
+
+if MODEL_TYPE == "SimpleRNN":
+    model = create_SimpleRNN_model()
+elif MODEL_TYPE == "GRU":
+    model = create_GRU_model()
+elif MODEL_TYPE == "LSTM":
+    model = create_LSTM_model()
+else:
+    print(f"Unknown MODEL_TYPE {MODEL_TYPE}")
+    quit()
 
 #训练
 X_train = np.array(train_set_X_list)
 X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], FEATURES)
 y_train = np.array(train_set_y_list)
 y_train = y_train.reshape(-1, 1)
-#model_lstm.fit(X_train, y_train, epochs=200, batch_size=64)
-model_gru.fit(X_train, y_train, epochs=200, batch_size=32)
+
+history = model.fit(X_train, y_train, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_split=0.1)
+
+def show_training_history(history):
+    loss = history.history["loss"]
+    val_loss = history.history["val_loss"]
+    epochs = range(1, EPOCHS+1)
+    plt.plot(epochs, loss, "bo", label="Training loss")
+    plt.plot(epochs, val_loss, "b", label="Validation loss")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.show()
+    plt.clf()
+    acc = history.history["accuracy"]
+    val_acc = history.history["val_accuracy"]
+    plt.plot(epochs, acc, "bo", label="Training accuracy")
+    plt.plot(epochs, val_acc, "b", label="Validation accuracy")
+    plt.title("Training and validation accuracy")
+    plt.xlabel("Epochs")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    plt.show()
+
+show_training_history(history)
 
 #保存模型
-model_gru.save("gru_model.keras")
+model.save(MODEL_FILE_NAME)
+
 
 
 #测试效果
@@ -201,67 +266,52 @@ def test_X_sequence(sequence, n_steps):
         scaler = MinMaxScaler()
         scaler.fit(np.array([np.min(seq_x), np.max(seq_x)]).reshape(-1, 1))
         seq_x = scaler.transform(seq_x)
-        seq_x = np.array(seq_x).reshape(-1, 2)
+        seq_x = np.array(seq_x).reshape(-1, FEATURES)
         X.append(seq_x)
     return np.array(X)
-
-def process_test_file(data_file_name):
-
-    dataset = pd.read_csv(
-        data_file_name
-    )
-
-    
-    testset_total = dataset.loc[:,["Open", "Close"]].to_numpy()
-
-    
-    return test_X_sequence(testset_total, N_STEPS)
 
 #用训练好的模型对测试数据集进行预测
 def process_test_file(data_file_name):
     global dataset
-
     dataset = pd.read_csv(
         data_file_name, index_col="Date", parse_dates=["Date"]
     )
 
-    
-
-    testset_total = dataset.loc[:,["Open", "Close"]].to_numpy()
+    testset_total = dataset.loc[:,FEATURES_SET].to_numpy()    
     return test_X_sequence(testset_total, N_STEPS)
 
-X_test = process_test_file("test.txt")
+X_test = process_test_file(TEST_FILE_NAME)
 X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], FEATURES)
-GRU_predicted_result = model_gru.predict(X_test)
+predicted_result = model.predict(X_test)
 
 
-def make_selling_signal(signals, price):
+def make_top_signals(signals, price):
     signal   = []
     i = 0
     for value in price:
-        if i >= N_STEPS and signals[i - N_STEPS] > 1.0:
+        if i >= N_STEPS and signals[i-N_STEPS] > 0.99:
             signal.append(value)
         else:
             signal.append(np.nan)
         i = i + 1
     return signal
 
-def make_buying_signal(signals, price):
+def make_bottom_signals(signals, price):
     signal   = []
     i = 0
     for value in price:
-        if i >= N_STEPS and signals[i - N_STEPS] < -1.0:
+        if i >= N_STEPS and signals[i-N_STEPS] < 0.01:
             signal.append(value)
         else:
             signal.append(np.nan)
+        
         i = i + 1
     return signal
 
-
-selling_signal = make_selling_signal(GRU_predicted_result, dataset['Open'])
-buying_signal = make_buying_signal(GRU_predicted_result, dataset['Open'])
-apds = [    mpf.make_addplot(selling_signal, type='scatter', markersize=200, marker='^', color='r'),
-            mpf.make_addplot(buying_signal, type='scatter', markersize=200, marker='^', color='b')
+signals_h = make_top_signals(predicted_result, dataset['Open'])
+signals_l = make_bottom_signals(predicted_result, dataset['Open'])
+apds = [    mpf.make_addplot(signals_l, type='scatter', markersize=100, marker='^', color='b'),
+            mpf.make_addplot(signals_h, type='scatter', markersize=100, marker='^', color='r'),
         ]
 
 mpf.plot(dataset, type='candle',mav=(3,6,9), addplot=apds)

@@ -19,6 +19,10 @@ dataset = pd.DataFrame()
 
 def test_X_sequence(sequence, n_steps):
     X = list()
+    dummy = np.full((n_steps, FEATURES), np.nan).reshape(-1, FEATURES)
+    for i in range(n_steps):
+        X.append(dummy)
+
     for i in range(len(sequence)):
         end_ix = i + n_steps
         if end_ix > len(sequence) - 1:
@@ -26,7 +30,7 @@ def test_X_sequence(sequence, n_steps):
         seq_x = sequence[i:end_ix]
         
         seq_x = seq_x.flatten().reshape(-1, 1)
-        scaler = MinMaxScaler()
+        scaler = MinMaxScaler(feature_range=(0,1))
         scaler.fit(np.array([np.min(seq_x), np.max(seq_x)]).reshape(-1, 1))
         seq_x = scaler.transform(seq_x)
         seq_x = np.array(seq_x).reshape(-1, FEATURES)
@@ -45,42 +49,30 @@ def process_test_file(data_file_name):
     testset_total = dataset.loc[:,FEATURES_SET].to_numpy()
     return test_X_sequence(testset_total, N_STEPS)
 
-def make_top_signals(signals, price):
-    signal   = []
-    i = 0
-    for value in price:
-        if OFFSET == 0 or i < len(signals) + N_STEPS - OFFSET:
-            if i >= N_STEPS and signals[i-N_STEPS+OFFSET] > 0.99:
-                signal.append(value)
-            else:
-                signal.append(np.nan)    
-        else:
-            signal.append(np.nan)
-        i = i + 1
-    return signal
-
-def make_bottom_signals(signals, price):
-    signal   = []
-    i = 0
-    for value in price:
-        if OFFSET == 0 or i < len(signals) + N_STEPS - OFFSET:
-            if i >= N_STEPS and signals[i-N_STEPS+OFFSET] < 0.01:
-                signal.append(value)
-            else:
-                signal.append(np.nan)
-        else:
-            signal.append(np.nan)
-        i = i + 1
-    return signal
-
-
 X_test = process_test_file(config.TEST_FILE_NAME)
 X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], FEATURES)
-
 model = keras.models.load_model(config.MODEL_FILE_NAME)
-predicted_result = model.predict(X_test)
-signals_h = make_top_signals(predicted_result, dataset['Open'])
-signals_l = make_bottom_signals(predicted_result, dataset['Open'])
+
+signals_h = []
+signals_l = []
+for i in range(len(dataset)):
+    if np.all(np.isnan(X_test[i])) or i >= len(dataset) - OFFSET:
+        signals_l.append(np.nan)
+        signals_h.append(np.nan)
+        continue
+
+    sample = X_test[i+OFFSET]
+    sample = sample.reshape(1,sample.shape[0],sample.shape[1])
+    predicted_result = model.predict(sample)
+    if predicted_result[0] < 0.01:
+        signals_l.append(dataset['Open'][i])
+    else:
+        signals_l.append(np.nan)
+
+    if predicted_result[0] > 0.99:
+        signals_h.append(dataset['Open'][i])
+    else:
+        signals_h.append(np.nan)
 
 apds = [    
         mpf.make_addplot(signals_l, type='scatter', markersize=100, marker='^', color='b'),

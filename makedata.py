@@ -1,17 +1,18 @@
 import random
+import config
 
 # 打开文本文件
-with open("input.txt", "r") as file:
+with open(config.RAW_DATA_FILE, "r") as file:
     # 读取第一行并保存
     first_line = file.readline()
 
     lines = file.readlines()
     total_lines = len(lines)
 
-    file_pattern = "data/highlow-{}.txt"
+    file_pattern = config.SAMPLE_FILE_PATTERN
     # 设置要保存的文件的数量
-    num_files = 100
-    from_file_num = 1501
+    num_files = config.TOTAL_SAMPLE_FILES
+    from_file_num = 1
 
     for i in range(from_file_num, from_file_num + num_files):
         # 随机选择一个合适的起始行数
@@ -28,3 +29,6 @@ with open("input.txt", "r") as file:
             # 写入第一行到新文件
             output_file.write(first_line)
             output_file.writelines(selected_lines)
+
+
+    print(f"{num_files} sample files generated.")
