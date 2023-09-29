@@ -1,6 +1,7 @@
 import json
 
 TRAIN_DATA_SUBDIR = "data"
+FLOATING_POINT_ADJUSTMENT = True
 
 #训练集的数据文件总数(文件名后缀从1~TOTAL_SAMPLE_FILES)
 # 默认参数值

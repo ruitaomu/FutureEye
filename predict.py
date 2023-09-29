@@ -14,8 +14,10 @@ FEATURES_SET = settings["FEATURES_SET"]
 FEATURES = len(FEATURES_SET)
 
 #When OFFSET == 0, the predicted results are real happenning. Otherwise, it simulated by ideal situation
-#OFFSET = 0
-OFFSET = settings["FEATURE_OFFSET"] - 1
+if config.FLOATING_POINT_ADJUSTMENT:
+    OFFSET = settings["FEATURE_OFFSET"] - 1
+else:
+    OFFSET = 0
 
 dataset = pd.DataFrame()
 

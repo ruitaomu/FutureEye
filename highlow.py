@@ -307,33 +307,36 @@ def initialize():
     n_top_samples = 0
     n_bottom_samples = 0
     
-def show_training_history(history):
+def get_training_history_loss_plot(ax, history):
     loss = history.history["loss"]
     val_loss = history.history["val_loss"]
     epochs = range(1, settings["EPOCHS"]+1)
-    plt.plot(epochs, loss, "bo", label="Training loss")
-    plt.plot(epochs, val_loss, "b", label="Validation loss")
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.show()
-    plt.clf()
+    ax[0].plot(epochs, loss, "bo", label="Training loss")
+    ax[0].plot(epochs, val_loss, "b", label="Validation loss")
+    ax[0].set_xlabel("Epochs")
+    ax[0].set_ylabel("Loss")
+    ax[0].legend()
+
+def get_training_history_acc_plot(ax, history):
     acc = history.history["accuracy"]
     val_acc = history.history["val_accuracy"]
-    plt.plot(epochs, acc, "bo", label="Training accuracy")
-    plt.plot(epochs, val_acc, "b", label="Validation accuracy")
-    plt.title("Training and validation accuracy")
-    plt.xlabel("Epochs")
-    plt.ylabel("Accuracy")
-    plt.legend()
-    plt.show()
+    epochs = range(1, settings["EPOCHS"]+1)
+    ax[1].plot(epochs, acc, "bo", label="Training accuracy")
+    ax[1].plot(epochs, val_acc, "b", label="Validation accuracy")
+    ax[1].set_title("Training and validation accuracy")
+    ax[1].set_xlabel("Epochs")
+    ax[1].set_ylabel("Accuracy")
+    ax[1].legend()
 
 
 if __name__ == "__main__":
     initialize()
     prepare_data()
     model, history = start_train(settings["MODEL_TYPE"])
-    show_training_history(history)
+    fig,ax=plt.subplots(1,2)
+    get_training_history_loss_plot(ax, history)
+    get_training_history_acc_plot(ax, history)
+    plt.show()
     predicted_result = start_predict(model)
     show_predict_result(predicted_result)
     print("All done!")
