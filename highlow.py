@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 import mplfinance as mpf
 import matplotlib.pyplot as plt
-import config
+import config as cfg
+import os
 
 from sklearn.preprocessing import MinMaxScaler, StandardScaler 
 from sklearn.metrics import mean_squared_error
@@ -13,21 +14,9 @@ from tensorflow.keras.layers import Dense, LSTM, Dropout, GRU, Bidirectional, Si
 from tensorflow.keras.optimizers import SGD
 from tensorflow.random import set_seed
 
-TOTAL_SAMPLE_FILES = config.TOTAL_SAMPLE_FILES
-FEATURES_SET = config.FEATURES_SET
-N_STEPS = config.N_STEPS
-SAMPLE_FILE_PATTERN = config.SAMPLE_FILE_PATTERN
-TEST_FILE_NAME=config.TEST_FILE_NAME
-MODEL_FILE_NAME=config.MODEL_FILE_NAME
-FEATURE_OFFSET=config.FEATURE_OFFSET
-
-AUTO_MARK = True
-EPOCHS = 34
-BATCH_SIZE = 64
-MODEL_TYPE = "SimpleRNN" #SimpleRNN/GRU/LSTM
+settings = cfg.DEFAULT_SETTINGS
 
 IGNORE_SAMPLE_FINISH_WITH_MINMAX = True
-FEATURES = len(FEATURES_SET)
 
 train_set_X_list = list()
 train_set_y_list = list()
@@ -60,6 +49,9 @@ def process_data_file(data_file_name):
     high_indeces = []
     low_indeces = []
     dataset = pd.DataFrame()
+    N_STEPS = settings["N_STEPS"]
+    FEATURE_OFFSET = settings["FEATURE_OFFSET"]
+    FEATURES = len(settings["FEATURES_SET"])
 
     set_seed(4550)
     np.random.seed(4551)
@@ -72,7 +64,7 @@ def process_data_file(data_file_name):
     #print(dataset.describe())
 
     global IGNORE_SAMPLE_FINISH_WITH_MINMAX
-    global AUTO_MARK
+    AUTO_MARK = settings["AUTO_MARK"]
     if AUTO_MARK == False and 'Top' in dataset.columns and 'Bottom' in dataset.columns:
         AUTO_MARK = False
     else:
@@ -131,7 +123,7 @@ def process_data_file(data_file_name):
     unscaled_low_samples = list()
 
     for i in range(len(high_indeces)):
-        h = dataset.loc[high_indeces[i]-N_STEPS+FEATURE_OFFSET : high_indeces[i]-1+FEATURE_OFFSET, FEATURES_SET].to_numpy().flatten().reshape(-1, 1)
+        h = dataset.loc[high_indeces[i]-N_STEPS+FEATURE_OFFSET : high_indeces[i]-1+FEATURE_OFFSET, settings["FEATURES_SET"]].to_numpy().flatten().reshape(-1, 1)
         #设定缩放器
         scaler = MinMaxScaler(feature_range=(0,1))
         scaler.fit(np.array([np.min(h), np.max(h)]).reshape(-1, 1)) 
@@ -140,7 +132,7 @@ def process_data_file(data_file_name):
         scaled_high_samples.append(np.array(h).reshape(-1, FEATURES))
 
     for i in range(len(low_indeces)):
-        l = dataset.loc[low_indeces[i]-N_STEPS+FEATURE_OFFSET : low_indeces[i]-1+FEATURE_OFFSET, FEATURES_SET].to_numpy().flatten().reshape(-1, 1)
+        l = dataset.loc[low_indeces[i]-N_STEPS+FEATURE_OFFSET : low_indeces[i]-1+FEATURE_OFFSET, settings["FEATURES_SET"]].to_numpy().flatten().reshape(-1, 1)
         #设定缩放器
         scaler = MinMaxScaler(feature_range=(0,1))
         scaler.fit(np.array([np.min(l), np.max(l)]).reshape(-1, 1))    
@@ -153,30 +145,41 @@ def process_data_file(data_file_name):
     #将该图片里的所有低点采样数据加入训练集
     add_train_set(scaled_low_samples, 0.00)
 
+def prepare_data():
+    global train_set_X_list, train_set_y_list, test_set_X_list, test_set_y_list
+    train_set_X_list = list()
+    train_set_y_list = list()
+    test_set_X_list = list()
+    test_set_y_list = list()
 
-file_pattern = SAMPLE_FILE_PATTERN
+    global n_top_samples, n_bottom_samples
+    n_top_samples = 0
+    n_bottom_samples = 0
+    
+    file_pattern = settings["SAMPLE_FILE_PATTERN"]
 
-#训练集的数据文件总数
-num_files = TOTAL_SAMPLE_FILES
+    #训练集的数据文件总数
+    num_files = settings["TOTAL_SAMPLE_FILES"]
 
-if AUTO_MARK == True:
-    print("Using AUTO MARK, find out the top/bottom points automatically")
-else:
-    print("NOT using AUTO MARK, the top/bottom points read from data files if the columns exist")
+    if settings["AUTO_MARK"] == True:
+        print("Using AUTO MARK, find out the top/bottom points automatically")
+    else:
+        print("NOT using AUTO MARK, the top/bottom points read from data files if the columns exist")
 
-#逐个处理训练集数据文件，将训练集数据加入train_set_X_list和train_set_y_list列表
-for i in range(1, num_files + 1):
-    file_name = file_pattern.format(i)
-    process_data_file(data_file_name = file_name)
-    if i % 100 == 0:
-        print(f"{i}/{num_files} files processed, total {len(train_set_y_list)} samples, {n_top_samples} Top samples, {n_bottom_samples} Bottom samples")
+    #逐个处理训练集数据文件，将训练集数据加入train_set_X_list和train_set_y_list列表
+    for i in range(1, num_files + 1):
+        file_name = file_pattern.format(i)
+        file_name = os.path.join(cfg.TRAIN_DATA_SUBDIR, file_name)
+        process_data_file(data_file_name = file_name)
+        if i % 100 == 0:
+            print(f"{i}/{num_files} files processed, total {len(train_set_y_list)} samples, {n_top_samples} Top samples, {n_bottom_samples} Bottom samples")
 
-print(f"All training data files have been processed, total {len(train_set_y_list)} samples, {n_top_samples} Top samples, {n_bottom_samples} Bottom samples")
+    print(f"All training data files have been processed, total {len(train_set_y_list)} samples, {n_top_samples} Top samples, {n_bottom_samples} Bottom samples")
 
 def create_LSTM_model():
     # The LSTM architecture
     model = Sequential()
-    model.add(LSTM(units=125, activation="tanh", input_shape=(N_STEPS, FEATURES), return_sequences=True))
+    model.add(LSTM(units=125, activation="tanh", input_shape=(settings["N_STEPS"], len(settings["FEATURES_SET"])), return_sequences=True))
     model.add(LSTM(units=125, activation="tanh"))
     model.add(Dense(units=1, activation="sigmoid"))
     # Compiling the model
@@ -187,7 +190,7 @@ def create_LSTM_model():
 
 def create_SimpleRNN_model():
     model = Sequential()
-    model.add(SimpleRNN(units=256, activation="relu", input_shape=(N_STEPS, FEATURES), unroll=True, return_sequences=True))
+    model.add(SimpleRNN(units=256, activation="relu", input_shape=(settings["N_STEPS"], len(settings["FEATURES_SET"])), unroll=True, return_sequences=True))
     model.add(SimpleRNN(units=256, activation="relu", unroll=True))
     model.add(Dense(units=1, activation="sigmoid"))
     # Compiling the model
@@ -198,7 +201,7 @@ def create_SimpleRNN_model():
 
 def create_GRU_model():
     model = Sequential()
-    model.add(GRU(units=125, activation="tanh", input_shape=(N_STEPS, FEATURES), return_sequences=True))
+    model.add(GRU(units=125, activation="tanh", input_shape=(settings["N_STEPS"], len(settings["FEATURES_SET"])), return_sequences=True))
     model.add(GRU(units=125, activation="tanh"))
     model.add(Dense(units=1, activation="sigmoid"))
     # Compiling the model
@@ -207,49 +210,53 @@ def create_GRU_model():
 
     return model
 
-if MODEL_TYPE == "SimpleRNN":
-    model = create_SimpleRNN_model()
-elif MODEL_TYPE == "GRU":
-    model = create_GRU_model()
-elif MODEL_TYPE == "LSTM":
-    model = create_LSTM_model()
-else:
-    print(f"Unknown MODEL_TYPE {MODEL_TYPE}")
-    quit()
+#MODEL_TYPE = SimpleRNN/GRU/LSTM
+def start_train(MODEL_TYPE):
 
-#训练
-X_train = np.array(train_set_X_list)
-X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], FEATURES)
-y_train = np.array(train_set_y_list)
-y_train = y_train.reshape(-1, 1)
+    if MODEL_TYPE == "SimpleRNN":
+        model = create_SimpleRNN_model()
+    elif MODEL_TYPE == "GRU":
+        model = create_GRU_model()
+    elif MODEL_TYPE == "LSTM":
+        model = create_LSTM_model()
+    else:
+        print(f"Unknown MODEL_TYPE {MODEL_TYPE}")
+        quit()
 
-history = model.fit(X_train, y_train, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_split=0.1)
+    #训练
+    X_train = np.array(train_set_X_list)
+    X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], len(settings["FEATURES_SET"]))
+    y_train = np.array(train_set_y_list)
+    y_train = y_train.reshape(-1, 1)
 
-def show_training_history(history):
-    loss = history.history["loss"]
-    val_loss = history.history["val_loss"]
-    epochs = range(1, EPOCHS+1)
-    plt.plot(epochs, loss, "bo", label="Training loss")
-    plt.plot(epochs, val_loss, "b", label="Validation loss")
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.show()
-    plt.clf()
-    acc = history.history["accuracy"]
-    val_acc = history.history["val_accuracy"]
-    plt.plot(epochs, acc, "bo", label="Training accuracy")
-    plt.plot(epochs, val_acc, "b", label="Validation accuracy")
-    plt.title("Training and validation accuracy")
-    plt.xlabel("Epochs")
-    plt.ylabel("Accuracy")
-    plt.legend()
-    plt.show()
+    history = model.fit(X_train, y_train, epochs=settings["EPOCHS"], batch_size=settings["BATCH_SIZE"], validation_split=0.1)
 
-show_training_history(history)
+    def show_training_history(history):
+        loss = history.history["loss"]
+        val_loss = history.history["val_loss"]
+        epochs = range(1, settings["EPOCHS"]+1)
+        plt.plot(epochs, loss, "bo", label="Training loss")
+        plt.plot(epochs, val_loss, "b", label="Validation loss")
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.show()
+        plt.clf()
+        acc = history.history["accuracy"]
+        val_acc = history.history["val_accuracy"]
+        plt.plot(epochs, acc, "bo", label="Training accuracy")
+        plt.plot(epochs, val_acc, "b", label="Validation accuracy")
+        plt.title("Training and validation accuracy")
+        plt.xlabel("Epochs")
+        plt.ylabel("Accuracy")
+        plt.legend()
+        plt.show()
 
-#保存模型
-model.save(MODEL_FILE_NAME)
+    show_training_history(history)
+
+    #保存模型
+    model.save(settings["MODEL_FILE_NAME"])
+    return model
 
 
 
@@ -266,7 +273,7 @@ def test_X_sequence(sequence, n_steps):
         scaler = MinMaxScaler()
         scaler.fit(np.array([np.min(seq_x), np.max(seq_x)]).reshape(-1, 1))
         seq_x = scaler.transform(seq_x)
-        seq_x = np.array(seq_x).reshape(-1, FEATURES)
+        seq_x = np.array(seq_x).reshape(-1, len(settings["FEATURES_SET"]))
         X.append(seq_x)
     return np.array(X)
 
@@ -277,30 +284,32 @@ def process_test_file(data_file_name):
         data_file_name, index_col="Date", parse_dates=["Date"]
     )
 
-    testset_total = dataset.loc[:,FEATURES_SET].to_numpy()    
-    return test_X_sequence(testset_total, N_STEPS)
+    testset_total = dataset.loc[:,settings["FEATURES_SET"]].to_numpy()    
+    return test_X_sequence(testset_total, settings["N_STEPS"])
 
-X_test = process_test_file(TEST_FILE_NAME)
-X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], FEATURES)
-predicted_result = model.predict(X_test)
+def start_predict(model):
+    X_test = process_test_file(settings["TEST_FILE_NAME"])
+    X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], len(settings["FEATURES_SET"]))
+    predicted_result = model.predict(X_test)
+    return predicted_result
 
 
-def make_top_signals(signals, price):
+def make_top_signals(signals, price, n_steps):
     signal   = []
     i = 0
     for value in price:
-        if i >= N_STEPS and signals[i-N_STEPS] > 0.99:
+        if i >= n_steps and signals[i-n_steps] > 0.99:
             signal.append(value)
         else:
             signal.append(np.nan)
         i = i + 1
     return signal
 
-def make_bottom_signals(signals, price):
+def make_bottom_signals(signals, price, n_steps):
     signal   = []
     i = 0
     for value in price:
-        if i >= N_STEPS and signals[i-N_STEPS] < 0.01:
+        if i >= n_steps and signals[i-n_steps] < 0.01:
             signal.append(value)
         else:
             signal.append(np.nan)
@@ -308,12 +317,23 @@ def make_bottom_signals(signals, price):
         i = i + 1
     return signal
 
-signals_h = make_top_signals(predicted_result, dataset['Open'])
-signals_l = make_bottom_signals(predicted_result, dataset['Open'])
-apds = [    mpf.make_addplot(signals_l, type='scatter', markersize=100, marker='^', color='b'),
-            mpf.make_addplot(signals_h, type='scatter', markersize=100, marker='^', color='r'),
-        ]
+def show_predict_result(predicted_result):
+    signals_h = make_top_signals(predicted_result, dataset['Open'], settings["N_STEPS"])
+    signals_l = make_bottom_signals(predicted_result, dataset['Open'], settings["N_STEPS"])
+    apds = [    mpf.make_addplot(signals_l, type='scatter', markersize=100, marker='^', color='b'),
+                mpf.make_addplot(signals_h, type='scatter', markersize=100, marker='^', color='r'),
+            ]
 
-mpf.plot(dataset, type='candle',mav=(3,6,9), addplot=apds)
+    mpf.plot(dataset, type='candle',mav=(3,6,9), addplot=apds)
 
-print("All done!")
+def train_highlow():
+    global settings
+    settings = cfg.load_settings()
+    prepare_data()
+    model = start_train(settings["MODEL_TYPE"])
+    predicted_result = start_predict(model)
+    show_predict_result(predicted_result)
+    print("All done!")
+    
+if __name__ == "__main__":
+    train_highlow()

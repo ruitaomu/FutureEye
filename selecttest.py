@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 import config
 
-df = pd.read_csv(config.RAW_DATA_FILE)
+settings = config.load_settings()
+df = pd.read_csv(settings["RAW_DATA_FILE"])
 
 # 将'Date'列转换为日期时间类型
 df["Date"] = pd.to_datetime(df["Date"])
@@ -17,7 +18,7 @@ selected_rows = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
 # 打印选定的数据行
 print(selected_rows)
 
-file_name = config.TEST_FILE_NAME
+file_name = settings["TEST_FILE_NAME"]
 
 selected_rows.to_csv(file_name, index=False)
 print(f"Test data file is generated: {file_name}")

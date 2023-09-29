@@ -7,13 +7,15 @@ from sklearn.preprocessing import MinMaxScaler
 import mplfinance as mpf
 import config
 
-N_STEPS = config.N_STEPS
-FEATURES_SET = config.FEATURES_SET
+settings = config.load_settings()
+
+N_STEPS = settings["N_STEPS"]
+FEATURES_SET = settings["FEATURES_SET"]
 FEATURES = len(FEATURES_SET)
 
 #When OFFSET == 0, the predicted results are real happenning. Otherwise, it simulated by ideal situation
 #OFFSET = 0
-OFFSET = config.FEATURE_OFFSET - 1
+OFFSET = settings["FEATURE_OFFSET"] - 1
 
 dataset = pd.DataFrame()
 
@@ -74,10 +76,10 @@ def make_bottom_signals(signals, price):
     return signal
 
 
-X_test = process_test_file(config.TEST_FILE_NAME)
+X_test = process_test_file(settings["TEST_FILE_NAME"])
 X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], FEATURES)
 
-model = keras.models.load_model(config.MODEL_FILE_NAME)
+model = keras.models.load_model(settings["MODEL_FILE_NAME"])
 predicted_result = model.predict(X_test)
 signals_h = make_top_signals(predicted_result, dataset['Open'])
 signals_l = make_bottom_signals(predicted_result, dataset['Open'])
