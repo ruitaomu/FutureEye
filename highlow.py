@@ -145,17 +145,7 @@ def process_data_file(data_file_name):
     #将该图片里的所有低点采样数据加入训练集
     add_train_set(scaled_low_samples, 0.00)
 
-def prepare_data():
-    global train_set_X_list, train_set_y_list, test_set_X_list, test_set_y_list
-    train_set_X_list = list()
-    train_set_y_list = list()
-    test_set_X_list = list()
-    test_set_y_list = list()
-
-    global n_top_samples, n_bottom_samples
-    n_top_samples = 0
-    n_bottom_samples = 0
-    
+def prepare_data():    
     file_pattern = settings["SAMPLE_FILE_PATTERN"]
 
     #训练集的数据文件总数
@@ -231,32 +221,9 @@ def start_train(MODEL_TYPE):
 
     history = model.fit(X_train, y_train, epochs=settings["EPOCHS"], batch_size=settings["BATCH_SIZE"], validation_split=0.1)
 
-    def show_training_history(history):
-        loss = history.history["loss"]
-        val_loss = history.history["val_loss"]
-        epochs = range(1, settings["EPOCHS"]+1)
-        plt.plot(epochs, loss, "bo", label="Training loss")
-        plt.plot(epochs, val_loss, "b", label="Validation loss")
-        plt.xlabel("Epochs")
-        plt.ylabel("Loss")
-        plt.legend()
-        plt.show()
-        plt.clf()
-        acc = history.history["accuracy"]
-        val_acc = history.history["val_accuracy"]
-        plt.plot(epochs, acc, "bo", label="Training accuracy")
-        plt.plot(epochs, val_acc, "b", label="Validation accuracy")
-        plt.title("Training and validation accuracy")
-        plt.xlabel("Epochs")
-        plt.ylabel("Accuracy")
-        plt.legend()
-        plt.show()
-
-    show_training_history(history)
-
     #保存模型
     model.save(settings["MODEL_FILE_NAME"])
-    return model
+    return model, history
 
 
 
@@ -326,14 +293,47 @@ def show_predict_result(predicted_result):
 
     mpf.plot(dataset, type='candle',mav=(3,6,9), addplot=apds)
 
-def train_highlow():
+def initialize():
     global settings
     settings = cfg.load_settings()
+    
+    global train_set_X_list, train_set_y_list, test_set_X_list, test_set_y_list
+    train_set_X_list = list()
+    train_set_y_list = list()
+    test_set_X_list = list()
+    test_set_y_list = list()
+
+    global n_top_samples, n_bottom_samples
+    n_top_samples = 0
+    n_bottom_samples = 0
+    
+def show_training_history(history):
+    loss = history.history["loss"]
+    val_loss = history.history["val_loss"]
+    epochs = range(1, settings["EPOCHS"]+1)
+    plt.plot(epochs, loss, "bo", label="Training loss")
+    plt.plot(epochs, val_loss, "b", label="Validation loss")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.show()
+    plt.clf()
+    acc = history.history["accuracy"]
+    val_acc = history.history["val_accuracy"]
+    plt.plot(epochs, acc, "bo", label="Training accuracy")
+    plt.plot(epochs, val_acc, "b", label="Validation accuracy")
+    plt.title("Training and validation accuracy")
+    plt.xlabel("Epochs")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    plt.show()
+
+
+if __name__ == "__main__":
+    initialize()
     prepare_data()
-    model = start_train(settings["MODEL_TYPE"])
+    model, history = start_train(settings["MODEL_TYPE"])
+    show_training_history(history)
     predicted_result = start_predict(model)
     show_predict_result(predicted_result)
     print("All done!")
-    
-if __name__ == "__main__":
-    train_highlow()
