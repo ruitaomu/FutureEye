@@ -49,7 +49,7 @@ def predict():
     features = len(settings["FEATURES_SET"])
 
     #When OFFSET == 0, the predicted results are real happenning. Otherwise, it simulated by ideal situation
-    if config.FLOATING_POINT_ADJUSTMENT:
+    if settings["FLOATING_POINT_ADJUSTMENT"]:
         OFFSET = settings["FEATURE_OFFSET"] - 1
     else:
         OFFSET = 0

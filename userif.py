@@ -6,7 +6,7 @@ import predict_step as predict
 import makedata
 
 # 更新设置并保存到JSON文件
-def update_settings(total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark):
+def update_settings(total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark, floating_point_adj):
     settings["TOTAL_SAMPLE_FILES"] = total_sample_files
     settings["FEATURES_SET"] = features_set
     settings["N_STEPS"] = n_steps
@@ -19,6 +19,7 @@ def update_settings(total_sample_files, features_set, n_steps, feature_offset, s
     settings["EPOCHS"] = epochs
     settings["BATCH_SIZE"] = batch_size
     settings["AUTO_MARK"] = auto_mark
+    settings["FLOATING_POINT_ADJUSTMENT"] = floating_point_adj
     cfg.save_settings(settings)
 
 def start_training():
@@ -35,20 +36,21 @@ settings = cfg.load_settings()
 with gr.Blocks() as interface:
     with gr.Row():
         with gr.Column():
-            sample_file_pattern = gr.Textbox(label="SAMPLE_FILE_PATTERN", value=settings["SAMPLE_FILE_PATTERN"])
-            raw_data_file = gr.Textbox(label="RAW_DATA_FILE", value=settings["RAW_DATA_FILE"])
-            test_file_name = gr.Textbox(label="TEST_FILE_NAME", value=settings["TEST_FILE_NAME"])
-            model_file_name = gr.Textbox(label="MODEL_FILE_NAME", value=settings["MODEL_FILE_NAME"])
+            sample_file_pattern = gr.Textbox(label="SAMPLE_FILE_PATTERN", value=lambda: settings["SAMPLE_FILE_PATTERN"])
+            raw_data_file = gr.Textbox(label="RAW_DATA_FILE", value=lambda: settings["RAW_DATA_FILE"])
+            test_file_name = gr.Textbox(label="TEST_FILE_NAME", value=lambda: settings["TEST_FILE_NAME"])
+            model_file_name = gr.Textbox(label="MODEL_FILE_NAME", value=lambda: settings["MODEL_FILE_NAME"])
         with gr.Column():
-            model_type = gr.Dropdown(label="MODEL_TYPE", choices=["SimpleRNN", "GRU", "LSTM"], value=settings["MODEL_TYPE"])
-            epochs = gr.Number(label="EPOCHS", precision=0, value=settings["EPOCHS"])
-            batch_size = gr.Number(label="BATCH_SIZE", precision=0, value=settings["BATCH_SIZE"])
-            auto_mark = gr.Checkbox(label="AUTO_MARK", value=settings["AUTO_MARK"])
+            model_type = gr.Dropdown(label="MODEL_TYPE", choices=["SimpleRNN", "GRU", "LSTM"], value=lambda: settings["MODEL_TYPE"])
+            epochs = gr.Number(label="EPOCHS", precision=0, value=lambda: settings["EPOCHS"])
+            batch_size = gr.Number(label="BATCH_SIZE", precision=0, value=lambda: settings["BATCH_SIZE"])
+            auto_mark = gr.Checkbox(label="AUTO_MARK", value=lambda: settings["AUTO_MARK"])
+            floating_point_adj = gr.Checkbox(label="FLOATING_POINT_ADJUSTMENT", value=lambda: settings["FLOATING_POINT_ADJUSTMENT"])
         with gr.Column():
-            total_sample_files = gr.Number(label="TOTAL_SAMPLE_FILES", precision=0, value=settings["TOTAL_SAMPLE_FILES"])
-            features_set = gr.CheckboxGroup(label="FEATURES_SET", choices=cfg.DEFAULT_SETTINGS["FEATURES_SET"], value=settings["FEATURES_SET"])
-            n_steps = gr.Number(label="N_STEPS", precision=0, value=settings["N_STEPS"])
-            feature_offset = gr.Number(label="FEATURE_OFFSET", precision=0, value=settings["FEATURE_OFFSET"])
+            total_sample_files = gr.Number(label="TOTAL_SAMPLE_FILES", precision=0, value=lambda: settings["TOTAL_SAMPLE_FILES"])
+            features_set = gr.CheckboxGroup(label="FEATURES_SET", choices=cfg.DEFAULT_SETTINGS["FEATURES_SET"], value=lambda: settings["FEATURES_SET"])
+            n_steps = gr.Number(label="N_STEPS", precision=0, value=lambda: settings["N_STEPS"])
+            feature_offset = gr.Number(label="FEATURE_OFFSET", precision=0, value=lambda: settings["FEATURE_OFFSET"])
     with gr.Row():
         save = gr.Button(value="Save")
         make = gr.Button(value="Make Data")
@@ -57,7 +59,7 @@ with gr.Blocks() as interface:
     with gr.Row():
         train_res_plot = gr.Plot(visible=False)
 
-    save.click(update_settings, inputs=[total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark],
+    save.click(update_settings, inputs=[total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark, floating_point_adj],
         outputs=None)
     train.click(start_training, inputs=None, outputs=train_res_plot)
     make.click(makedata.make, inputs=None, outputs=None)
