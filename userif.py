@@ -2,7 +2,7 @@ import gradio as gr
 import config as cfg
 import highlow as trainer
 import matplotlib.pyplot as plt
-import predict_step as predict
+import predict as predict
 import makedata
 
 # 更新设置并保存到JSON文件
