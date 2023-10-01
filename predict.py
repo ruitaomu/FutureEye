@@ -8,8 +8,7 @@ import mplfinance as mpf
 import config
 
 
-
-
+buy_price_stack = []
 
 def test_X_sequence(sequence, n_steps, features):
     X = list()
@@ -43,9 +42,17 @@ def process_test_file(settings):
     testset_total = dataset.loc[:,settings["FEATURES_SET"]].to_numpy()
     return test_X_sequence(testset_total, settings["N_STEPS"], features), dataset
 
-def predict():
-    settings = config.load_settings()
+def moving_avg(d, index, num):
+    sum = 0
+    for n in range(num):
+        sum += d['Close'][index-n]
+    return sum/num
     
+def predict():
+    global buy_price_stack
+    
+    settings = config.load_settings()
+    buy_price_stack = []
     features = len(settings["FEATURES_SET"])
 
     #When OFFSET == 0, the predicted results are real happenning. Otherwise, it simulated by ideal situation
@@ -61,7 +68,6 @@ def predict():
 
     signals_h = []
     signals_l = []
-    last_action = -1
     for i in range(len(dataset)):
         if np.all(np.isnan(X_test[i])) or i >= len(dataset) - OFFSET:
             signals_l.append(np.nan)
@@ -71,15 +77,18 @@ def predict():
         sample = X_test[i+OFFSET]
         sample = sample.reshape(1,sample.shape[0],sample.shape[1])
         predicted_result = model.predict(sample)
-        if predicted_result[0] < 0.01 and last_action != 0:
-            signals_l.append(dataset['Open'][i])
-            last_action = 0
+        signal = execution(predicted_result, dataset['Open'][i])
+        if signal == 0:
+            if dataset['Close'][i-1] > moving_avg(dataset, i-1, settings["N_STEPS"]) or dataset['Open'][i] > moving_avg(dataset, i-1, settings["N_STEPS"]):
+                buy_price_stack.pop()
+                signals_l.append(np.nan)
+            else:
+                signals_l.append(dataset['Open'][i])
         else:
             signals_l.append(np.nan)
 
-        if predicted_result[0] > 0.99 and last_action != 1:
+        if signal == 1:
             signals_h.append(dataset['Open'][i])
-            last_action = 1
         else:
             signals_h.append(np.nan)
 
@@ -89,7 +98,28 @@ def predict():
             ]
     return apds
     
+def execution(predicted_result, price):
+    global buy_price_stack
     
+    signal = -1
+    if predicted_result < 0.01:
+        if not buy_price_stack:
+            signal = 0
+            buy_price_stack.append(price)
+        elif buy_price_stack[-1] > price:
+            signal = 0
+            buy_price_stack.append(price)
+    elif predicted_result > 0.99:
+        if buy_price_stack:
+            while buy_price_stack and buy_price_stack[-1] < price:
+                signal = 1
+                buy_price_stack.pop()
+    
+    return signal 
+            
+            
+        
+
 if __name__ == "__main__":
     apds = predict()
     mpf.plot(dataset, type='candle',mav=(3,6,9), addplot=apds)
