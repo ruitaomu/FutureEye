@@ -61,6 +61,7 @@ def predict():
 
     signals_h = []
     signals_l = []
+    last_action = -1
     for i in range(len(dataset)):
         if np.all(np.isnan(X_test[i])) or i >= len(dataset) - OFFSET:
             signals_l.append(np.nan)
@@ -70,13 +71,15 @@ def predict():
         sample = X_test[i+OFFSET]
         sample = sample.reshape(1,sample.shape[0],sample.shape[1])
         predicted_result = model.predict(sample)
-        if predicted_result[0] < 0.01:
+        if predicted_result[0] < 0.01 and last_action != 0:
             signals_l.append(dataset['Open'][i])
+            last_action = 0
         else:
             signals_l.append(np.nan)
 
-        if predicted_result[0] > 0.99:
+        if predicted_result[0] > 0.99 and last_action != 1:
             signals_h.append(dataset['Open'][i])
+            last_action = 1
         else:
             signals_h.append(np.nan)
 

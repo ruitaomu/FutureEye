@@ -90,14 +90,14 @@ def process_data_file(data_file_name):
     else:
         all_high_points  = dataset.loc[:,"Top"].to_numpy()
         all_low_points  = dataset.loc[:,"Bottom"].to_numpy()
-        high_indeces = np.where(all_high_points == 1)[0]+N_STEPS
-        low_indeces = np.where(all_low_points == 1)[0]+N_STEPS
+        high_indeces = np.where(all_high_points == 1)[0]
+        low_indeces = np.where(all_low_points == 1)[0]
         IGNORE_SAMPLE_FINISH_WITH_MINMAX = False
 
     #如果几个最高点或最低点紧挨着，只保留连续的第一个位置
     result = []
     for i in range(len(high_indeces)):
-        if (IGNORE_SAMPLE_FINISH_WITH_MINMAX == True) and (high_indeces[i] == len(dataset)-N_STEPS-FEATURE_OFFSET-1):
+        if (IGNORE_SAMPLE_FINISH_WITH_MINMAX == True) and (high_indeces[i] >= len(dataset)-FEATURE_OFFSET-10):
             continue
 
         if i == 0 or high_indeces[i] != high_indeces[i-1] + 1:
@@ -107,7 +107,7 @@ def process_data_file(data_file_name):
 
     result = []
     for i in range(len(low_indeces)):
-        if (IGNORE_SAMPLE_FINISH_WITH_MINMAX == True) and (low_indeces[i] == len(dataset)-N_STEPS-FEATURE_OFFSET-1):
+        if (IGNORE_SAMPLE_FINISH_WITH_MINMAX == True) and (low_indeces[i] >= len(dataset)-FEATURE_OFFSET-10):
             continue
 
         if i == 0 or low_indeces[i] != low_indeces[i-1] + 1:
@@ -180,8 +180,9 @@ def create_LSTM_model():
 
 def create_SimpleRNN_model():
     model = Sequential()
-    model.add(SimpleRNN(units=256, activation="relu", input_shape=(settings["N_STEPS"], len(settings["FEATURES_SET"])), unroll=True, return_sequences=True))
-    model.add(SimpleRNN(units=256, activation="relu", unroll=True))
+    model.add(SimpleRNN(units=256, activation="tanh", input_shape=(settings["N_STEPS"], len(settings["FEATURES_SET"])), unroll=True, return_sequences=True))
+    model.add(SimpleRNN(units=256, activation="tanh", unroll=True, return_sequences=True))
+    model.add(SimpleRNN(units=256, activation="tanh", unroll=True)) 
     model.add(Dense(units=1, activation="sigmoid"))
     # Compiling the model
     model.compile(optimizer="RMSprop", loss="mse", metrics = ['accuracy'])
