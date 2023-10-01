@@ -97,7 +97,7 @@ def process_data_file(data_file_name):
     #如果几个最高点或最低点紧挨着，只保留连续的第一个位置
     result = []
     for i in range(len(high_indeces)):
-        if (IGNORE_SAMPLE_FINISH_WITH_MINMAX == True) and (high_indeces[i] >= len(dataset)-FEATURE_OFFSET-10):
+        if (IGNORE_SAMPLE_FINISH_WITH_MINMAX == True) and ((high_indeces[i] >= len(dataset)-FEATURE_OFFSET-N_STEPS*2)):
             continue
 
         if i == 0 or high_indeces[i] != high_indeces[i-1] + 1:
@@ -107,7 +107,7 @@ def process_data_file(data_file_name):
 
     result = []
     for i in range(len(low_indeces)):
-        if (IGNORE_SAMPLE_FINISH_WITH_MINMAX == True) and (low_indeces[i] >= len(dataset)-FEATURE_OFFSET-10):
+        if (IGNORE_SAMPLE_FINISH_WITH_MINMAX == True) and ((low_indeces[i] >= len(dataset)-FEATURE_OFFSET-N_STEPS*2)):
             continue
 
         if i == 0 or low_indeces[i] != low_indeces[i-1] + 1:
