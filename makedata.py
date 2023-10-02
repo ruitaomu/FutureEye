@@ -53,13 +53,16 @@ def make():
                     output_file.write(first_line)
                     output_file.writelines(selected_lines)
 
-
-            print(f"{num_files} sample files generated.")
+            str = f"{num_files} sample files generated."
+            print(str)
+            return str
     else:
         file_name = file_pattern.format(1)
         file_name = os.path.join(data_subdir, file_name)
         shutil.copy(settings["RAW_DATA_FILE"], file_name)
-        print(f"{file_name} sample file copied.")
-        
+        str = f"{file_name} sample file copied."
+        print(str)
+        return str
+            
 if __name__ == "__main__":
     make()

@@ -4,6 +4,7 @@ import highlow as trainer
 import matplotlib.pyplot as plt
 import predict as predict
 import makedata
+import selecttest as maketest
 
 # 更新设置并保存到JSON文件
 def update_settings(total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark, floating_point_adj):
@@ -32,6 +33,14 @@ def start_training():
     
     return gr.Plot(value=plt, visible=True)
 
+def make_data():
+    str = makedata.make()
+    return gr.Textbox(label="display_box", value=str)
+
+def make_test(year, month, date):
+    str = maketest.make(year, month, date)
+    return gr.Textbox(label="display_test_file", value=str)
+
 settings = cfg.load_settings()
 with gr.Blocks() as interface:
     with gr.Row():
@@ -54,15 +63,23 @@ with gr.Blocks() as interface:
     with gr.Row():
         save = gr.Button(value="Save")
         make = gr.Button(value="Make Data")
+        display_box = gr.Textbox(label="display_box", value="")
+    with gr.Row():
+        year = gr.Number(label="TEST_YEAR", precision=0, value=2022)
+        month = gr.Number(label="TEST_MONTH", precision=0, value=5)
+        date = gr.Number(label="TEST_DATE", precision=0, value=6)
+        maketest_btn = gr.Button(value="Make Test File")
+        display_test_file = gr.Textbox(label="display_test_file", value="")
     with gr.Row():
         train = gr.Button(value="Train")
     with gr.Row():
-        train_res_plot = gr.Plot(visible=False)
+        train_res_plot = gr.Plot(visible=True)
 
     save.click(update_settings, inputs=[total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark, floating_point_adj],
         outputs=None)
     train.click(start_training, inputs=None, outputs=train_res_plot)
-    make.click(makedata.make, inputs=None, outputs=None)
+    make.click(make_data, inputs=None, outputs=display_box)
+    maketest_btn.click(make_test, inputs=[year, month, date], outputs=display_test_file)
 
  
 # 运行界面
