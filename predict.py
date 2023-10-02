@@ -9,6 +9,9 @@ import config
 
 
 buy_price_stack = []
+EXECUTION_BUYING_ADJ_MA = True
+EXECUTION_SELLING_ADJ_MA = True
+EXECUTION_BUYING_ADJ_ONLYONCE = True
 
 def test_X_sequence(sequence, n_steps, features):
     X = list()
@@ -77,13 +80,9 @@ def predict():
         sample = X_test[i+OFFSET]
         sample = sample.reshape(1,sample.shape[0],sample.shape[1])
         predicted_result = model.predict(sample)
-        signal = execution(predicted_result, dataset['Open'][i])
+        signal = execution(predicted_result, dataset, i, settings["N_STEPS"])
         if signal == 0:
-            if dataset['Close'][i-1] > moving_avg(dataset, i-1, settings["N_STEPS"]) or dataset['Open'][i] > moving_avg(dataset, i-1, settings["N_STEPS"]):
-                buy_price_stack.pop()
-                signals_l.append(np.nan)
-            else:
-                signals_l.append(dataset['Open'][i])
+            signals_l.append(dataset['Open'][i])
         else:
             signals_l.append(np.nan)
 
@@ -98,23 +97,37 @@ def predict():
             ]
     return apds
     
-def execution(predicted_result, price):
+def execution(predicted_result, dataset, i, n_steps):
     global buy_price_stack
+    price = dataset['Open'][i]
     
     signal = -1
     if predicted_result < 0.01:
-        if not buy_price_stack:
+        if EXECUTION_SELLING_ADJ_MA:
+            if dataset['Close'][i-1] > moving_avg(dataset, i-1, n_steps) or dataset['Open'][i] > moving_avg(dataset, i-1, n_steps):
+                return -1
+            
+        if EXECUTION_BUYING_ADJ_ONLYONCE:
+            if not buy_price_stack:
+                signal = 0
+                buy_price_stack.append(price)
+            elif buy_price_stack[-1] > price:
+                signal = 0
+                buy_price_stack.append(price)
+        else:
             signal = 0
-            buy_price_stack.append(price)
-        elif buy_price_stack[-1] > price:
-            signal = 0
-            buy_price_stack.append(price)
     elif predicted_result > 0.99:
-        if buy_price_stack:
-            while buy_price_stack and buy_price_stack[-1] < price:
-                signal = 1
-                buy_price_stack.pop()
-    
+        if EXECUTION_SELLING_ADJ_MA:
+            if dataset['Close'][i-1] < moving_avg(dataset, i-1, n_steps) or dataset['Open'][i] < moving_avg(dataset, i-1, n_steps):
+                return -1
+        if EXECUTION_BUYING_ADJ_ONLYONCE:
+            if buy_price_stack:
+                while buy_price_stack and buy_price_stack[-1] < price:
+                    signal = 1
+                    buy_price_stack.pop()
+        else:
+            signal = 1
+            
     return signal 
             
             
