@@ -95,10 +95,14 @@ def snapshot_model(name):
         df = pd.read_csv(modelinfo_csv)
     
     snapshot_name = f"{name}.keras"
+    destination_file = f"{cfg.SNAPSHOT_SUBDIR}/{snapshot_name}"
+    if os.path.exists(destination_file):
+        #如果同名Snapshot存在则不保存
+        return
+    
     df.loc[len(df)] = [snapshot_name, settings['EPOCHS'], settings['BATCH_SIZE'], settings['N_STEPS'], settings['FEATURE_OFFSET'], settings['FEATURES_SET'], settings['MODEL_TYPE']]
     df.to_csv(modelinfo_csv, index=False)
     
-    destination_file = f"{cfg.SNAPSHOT_SUBDIR}/{snapshot_name}"
     shutil.copy(settings["MODEL_FILE_NAME"], destination_file)
     
 settings = cfg.load_settings()
