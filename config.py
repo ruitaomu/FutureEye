@@ -13,11 +13,12 @@ DEFAULT_SETTINGS = {
     "MODEL_TYPE": "SimpleRNN",
     "EPOCHS": 35,
     "BATCH_SIZE": 32,
-    "SAMPLE_FILE_PATTERN": "data/highlow-{}.txt",
+    "SAMPLE_FILE_PATTERN": "highlow-{}.txt",
     "RAW_DATA_FILE": "HEdata.csv",
     "TEST_FILE_NAME": "test.txt",
     "MODEL_FILE_NAME": "model.keras",
-    "FLOATING_POINT_ADJUSTMENT": True
+    "FLOATING_POINT_ADJUSTMENT": True,
+    "PREDICT_SOURCE_FILE": "HEdata.csv"
 }
 
 # 加载保存的设置

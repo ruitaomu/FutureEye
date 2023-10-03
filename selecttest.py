@@ -4,7 +4,7 @@ import config
 
 def make(year, month, date):
     settings = config.load_settings()
-    df = pd.read_csv(settings["RAW_DATA_FILE"])
+    df = pd.read_csv(settings["PREDICT_SOURCE_FILE"])
 
     # 将'Date'列转换为日期时间类型
     df["Date"] = pd.to_datetime(df["Date"])
@@ -23,11 +23,8 @@ def make(year, month, date):
 
     selected_rows.to_csv(file_name, index=False)
     print(f"Test data file is generated: {file_name}")
-    if selected_rows.empty:
-        return "No test data generated, maybe no trading at the date"
-    else:
-        return f"Test data file is generated: {file_name}"
+    return selected_rows
     
     
 if __name__ == "__main__":
-    make(2022,5,6)
+    make(2021,3,20)

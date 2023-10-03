@@ -11,7 +11,7 @@ import config
 buy_price_stack = []
 EXECUTION_BUYING_ADJ_MA = True
 EXECUTION_SELLING_ADJ_MA = True
-EXECUTION_BUYING_ADJ_ONLYONCE = True
+EXECUTION_BUYING_ADJ_ONLYONCE = False
 
 def test_X_sequence(sequence, n_steps, features):
     X = list()
@@ -33,12 +33,17 @@ def test_X_sequence(sequence, n_steps, features):
         X.append(seq_x)
     return np.array(X)
 
-def process_test_file(settings):
+def process_test_file(settings, if_make_index):
     global dataset
 
-    dataset = pd.read_csv(
+    if if_make_index:
+        dataset = pd.read_csv(
         settings["TEST_FILE_NAME"], index_col="Date", parse_dates=["Date"]
-    )
+        )
+    else:    
+        dataset = pd.read_csv(
+            settings["TEST_FILE_NAME"]
+        )
 
     features = len(settings["FEATURES_SET"])
 
@@ -51,7 +56,7 @@ def moving_avg(d, index, num):
         sum += d['Close'][index-n]
     return sum/num
     
-def predict():
+def predict(if_make_index=False):
     global buy_price_stack
     
     settings = config.load_settings()
@@ -65,7 +70,7 @@ def predict():
         OFFSET = 0
     
     
-    X_test, dataset = process_test_file(settings)
+    X_test, dataset = process_test_file(settings, if_make_index)
     X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], features)
     model = keras.models.load_model(settings["MODEL_FILE_NAME"])
 
@@ -91,11 +96,7 @@ def predict():
         else:
             signals_h.append(np.nan)
 
-    apds = [    
-            mpf.make_addplot(signals_l, type='scatter', markersize=100, marker='^', color='b'),
-            mpf.make_addplot(signals_h, type='scatter', markersize=100, marker='^', color='r'),
-            ]
-    return apds
+    return dataset, signals_l, signals_h
     
 def execution(predicted_result, dataset, i, n_steps):
     global buy_price_stack
@@ -103,8 +104,8 @@ def execution(predicted_result, dataset, i, n_steps):
     
     signal = -1
     if predicted_result < 0.01:
-        if EXECUTION_SELLING_ADJ_MA:
-            if dataset['Close'][i-1] > moving_avg(dataset, i-1, n_steps) or dataset['Open'][i] > moving_avg(dataset, i-1, n_steps):
+        if EXECUTION_BUYING_ADJ_MA:
+            if dataset['Close'][i-1] >= moving_avg(dataset, i-1, 2) or dataset['Open'][i] >= moving_avg(dataset, i-1, 2):
                 return -1
             
         if EXECUTION_BUYING_ADJ_ONLYONCE:
@@ -118,7 +119,7 @@ def execution(predicted_result, dataset, i, n_steps):
             signal = 0
     elif predicted_result > 0.99:
         if EXECUTION_SELLING_ADJ_MA:
-            if dataset['Close'][i-1] < moving_avg(dataset, i-1, n_steps) or dataset['Open'][i] < moving_avg(dataset, i-1, n_steps):
+            if dataset['Close'][i-1] <= moving_avg(dataset, i-1, 2) or dataset['Open'][i] <= moving_avg(dataset, i-1, 2):
                 return -1
         if EXECUTION_BUYING_ADJ_ONLYONCE:
             if buy_price_stack:
@@ -134,5 +135,9 @@ def execution(predicted_result, dataset, i, n_steps):
         
 
 if __name__ == "__main__":
-    apds = predict()
-    mpf.plot(dataset, type='candle',mav=(3,6,9), addplot=apds)
+    _, l, h = predict(True)
+    apds = [    
+            mpf.make_addplot(l, type='scatter', markersize=100, marker='^', color='b'),
+            mpf.make_addplot(h, type='scatter', markersize=100, marker='^', color='r'),
+            ]
+    mpf.plot(dataset, type='candle',mav=(2,3,6,9), addplot=apds)
