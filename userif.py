@@ -7,6 +7,8 @@ import makedata
 import selecttest as maketest
 import plotly.graph_objects as go
 import pandas as pd
+import os
+import shutil
 
 # 更新设置并保存到JSON文件
 def update_settings(total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark, floating_point_adj, predict_source_file):
@@ -75,6 +77,30 @@ def start_predict(floating_point_adj):
     fig.add_trace(go.Scatter(name="High", x=pd.to_datetime(df['Date']),y=signals_sell,mode="markers+text",marker=dict(symbol='triangle-down-open', size = 12, color="darkred")))
     return fig
 
+def snapshot_model(name):
+    if len(name) == 0:
+        return
+    
+    settings = cfg.load_settings()
+    
+    if not os.path.exists(settings["MODEL_FILE_NAME"]):
+        return
+     
+    if not os.path.exists(cfg.SNAPSHOT_SUBDIR):
+        os.makedirs(cfg.SNAPSHOT_SUBDIR)
+    
+    df = pd.DataFrame(columns=['Name', 'EPOCH', 'Batch Size', 'Steps', 'Feature Offset', 'Feature Set', 'Model Type'])
+    modelinfo_csv = f"{cfg.SNAPSHOT_SUBDIR}/{cfg.MODELINFO_FILE}"
+    if os.path.exists(modelinfo_csv):
+        df = pd.read_csv(modelinfo_csv)
+    
+    snapshot_name = f"{name}.keras"
+    df.loc[len(df)] = [snapshot_name, settings['EPOCHS'], settings['BATCH_SIZE'], settings['N_STEPS'], settings['FEATURE_OFFSET'], settings['FEATURES_SET'], settings['MODEL_TYPE']]
+    df.to_csv(modelinfo_csv, index=False)
+    
+    destination_file = f"{cfg.SNAPSHOT_SUBDIR}/{snapshot_name}"
+    shutil.copy(settings["MODEL_FILE_NAME"], destination_file)
+    
 settings = cfg.load_settings()
 with gr.Blocks() as interface:
     with gr.Row():
@@ -100,6 +126,8 @@ with gr.Blocks() as interface:
             model_type = gr.Dropdown(label="MODEL_TYPE", choices=["SimpleRNN", "GRU", "LSTM"], value=lambda: settings["MODEL_TYPE"])
             features_set = gr.CheckboxGroup(label="FEATURES_SET", choices=cfg.DEFAULT_SETTINGS["FEATURES_SET"], value=lambda: settings["FEATURES_SET"])
             train = gr.Button(value="Train")
+            snapshot_name = gr.Textbox(label="SNAPSHOT_NAME", value="")
+            snapshot = gr.Button(value="Snapshot")
     with gr.Row():
         train_res_plot = gr.Plot(visible=True)
     with gr.Row():
@@ -122,7 +150,7 @@ with gr.Blocks() as interface:
     make.click(make_data, inputs=[total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark, floating_point_adj, predict_source_file], outputs=display_box)
     maketest_btn.click(make_test, inputs=[year, month, date, predict_source_file], outputs=predict_plt)
     predict_btn.click(start_predict, inputs=floating_point_adj, outputs=predict_plt)
-
+    snapshot.click(snapshot_model, inputs=snapshot_name, outputs=None)
  
 # 运行界面
 if __name__ == "__main__":

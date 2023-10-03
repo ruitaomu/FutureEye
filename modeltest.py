@@ -4,12 +4,16 @@ import config as cfg
 import plotly.graph_objects as go
 import predict as predict
 import selecttest as maketest
+import os
 
 # 从 CSV 文件中读取数据，并将其转换为 DataFrame
 def read_csv_file(file_path):
-    global models_df
-    models_df = pd.read_csv(file_path)
-    return models_df
+    if os.path.exists(file_path):
+        global models_df
+        models_df = pd.read_csv(file_path)
+        return models_df
+    else:
+        return None
 
 def start_predict(model_name, pred_setting):
     df, signals_buy, signals_sell = predict.predict(pred_setting, False , model_name)
@@ -25,7 +29,7 @@ def start_predict(model_name, pred_setting):
 def on_select(evt: gr.SelectData):
     index = evt.index[0]
     name = models_df["Name"][index]
-    name = f"candidates/{name}"
+    name = f"{cfg.SNAPSHOT_SUBDIR}/{name}"
     temp_setting = settings.copy()
     temp_setting["N_STEPS"] = int(models_df["Steps"][index])
     temp_setting["FEATURE_OFFSET"] = int(models_df["Feature Offset"][index])
@@ -36,6 +40,9 @@ def on_select(evt: gr.SelectData):
     features_set = eval(models_df["Feature Set"][index])
     temp_setting["FEATURES_SET"] = features_set
     return start_predict(name, temp_setting)
+
+def on_refresh():
+    return gr.DataFrame(label="输出结果", value=read_csv_file(f"{cfg.SNAPSHOT_SUBDIR}/{cfg.MODELINFO_FILE}"))
 
 def make_test(year, month, date, predict_source_file):
     settings["PREDICT_SOURCE_FILE"] = predict_source_file
@@ -50,6 +57,9 @@ def make_test(year, month, date, predict_source_file):
                 low=df['Low'],
                 close=df['Close'])])
 
+if not os.path.exists(cfg.SNAPSHOT_SUBDIR):
+    os.makedirs(cfg.SNAPSHOT_SUBDIR)
+    
 settings = cfg.load_settings()
 
 # 创建界面
@@ -58,8 +68,11 @@ with gr.Blocks() as demo:
         predict_plt = gr.Plot(visible=True)
         
     with gr.Row():
-        csv_output = gr.DataFrame(label="输出结果", value=read_csv_file("candidates/modelinfo.csv"))
+        csv_output = gr.DataFrame(label="输出结果", value=read_csv_file(f"{cfg.SNAPSHOT_SUBDIR}/{cfg.MODELINFO_FILE}"))
         csv_output.select(on_select, inputs=None, outputs=predict_plt)
+    with gr.Row():
+        csv_refresh = gr.Button(value="Refresh")
+        csv_refresh.click(on_refresh, inputs=None, outputs=csv_output)
     with gr.Row():
         predict_source_file = gr.Textbox(label="PREDICT_SOURCE_FILE", value=lambda: settings["PREDICT_SOURCE_FILE"])
         test_file_name = gr.Textbox(label="TEST_FILE_NAME", value=lambda: settings["TEST_FILE_NAME"])
