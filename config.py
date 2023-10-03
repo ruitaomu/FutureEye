@@ -18,7 +18,10 @@ DEFAULT_SETTINGS = {
     "TEST_FILE_NAME": "test.txt",
     "MODEL_FILE_NAME": "model.keras",
     "FLOATING_POINT_ADJUSTMENT": True,
-    "PREDICT_SOURCE_FILE": "HEdata.csv"
+    "PREDICT_SOURCE_FILE": "HEdata.csv",
+    "TEST_YEAR": 2023,
+    "TEST_MONTH": 8,
+    "TEST_DATE": 8
 }
 
 # 加载保存的设置

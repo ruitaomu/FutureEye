@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 import tensorflow.keras as keras
-import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 import mplfinance as mpf
 import config
@@ -56,10 +54,9 @@ def moving_avg(d, index, num):
         sum += d['Close'][index-n]
     return sum/num
     
-def predict(if_make_index=False):
+def predict(settings, if_make_index=False, use_model_name=None):
     global buy_price_stack
     
-    settings = config.load_settings()
     buy_price_stack = []
     features = len(settings["FEATURES_SET"])
 
@@ -72,7 +69,10 @@ def predict(if_make_index=False):
     
     X_test, dataset = process_test_file(settings, if_make_index)
     X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], features)
-    model = keras.models.load_model(settings["MODEL_FILE_NAME"])
+    if use_model_name == None:
+        model = keras.models.load_model(settings["MODEL_FILE_NAME"])
+    else:
+        model = keras.models.load_model(use_model_name)
 
     signals_h = []
     signals_l = []
@@ -134,8 +134,9 @@ def execution(predicted_result, dataset, i, n_steps):
             
         
 
-if __name__ == "__main__":
-    _, l, h = predict(True)
+if __name__ == "__main__":    
+    settings = config.load_settings()
+    _, l, h = predict(settings, True)
     apds = [    
             mpf.make_addplot(l, type='scatter', markersize=100, marker='^', color='b'),
             mpf.make_addplot(h, type='scatter', markersize=100, marker='^', color='r'),

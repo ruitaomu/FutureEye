@@ -1,10 +1,11 @@
 # Importing the libraries
 import numpy as np
 import pandas as pd
-import mplfinance as mpf
 import matplotlib.pyplot as plt
 import config as cfg
 import os
+import predict as predict
+import plotly.graph_objects as go
 
 from sklearn.preprocessing import MinMaxScaler, StandardScaler 
 from sklearn.metrics import mean_squared_error
@@ -255,12 +256,17 @@ def process_test_file(data_file_name):
     testset_total = dataset.loc[:,settings["FEATURES_SET"]].to_numpy()    
     return test_X_sequence(testset_total, settings["N_STEPS"])
 
-def start_predict(model):
-    X_test = process_test_file(settings["TEST_FILE_NAME"])
-    X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], len(settings["FEATURES_SET"]))
-    predicted_result = model.predict(X_test)
-    return predicted_result
-
+def start_predict():
+    settings = cfg.load_settings()
+    df, signals_buy, signals_sell = predict.predict(settings)
+    fig = go.Figure(data=[go.Candlestick(x=pd.to_datetime(df['Date']),
+                open=df['Open'],
+                high=df['High'],
+                low=df['Low'],
+                close=df['Close'])])
+    fig.add_trace(go.Scatter(x=pd.to_datetime(df['Date']), y=signals_buy,mode="markers+text",marker=dict(symbol='triangle-down-open', size = 12, color="blue")))
+    fig.add_trace(go.Scatter(x=pd.to_datetime(df['Date']),y=signals_sell,mode="markers+text",marker=dict(symbol='triangle-down-open', size = 12, color="darkred")))
+    return fig
 
 def make_top_signals(signals, price, n_steps):
     signal   = []
@@ -284,15 +290,6 @@ def make_bottom_signals(signals, price, n_steps):
         
         i = i + 1
     return signal
-
-def show_predict_result(predicted_result):
-    signals_h = make_top_signals(predicted_result, dataset['Open'], settings["N_STEPS"])
-    signals_l = make_bottom_signals(predicted_result, dataset['Open'], settings["N_STEPS"])
-    apds = [    mpf.make_addplot(signals_l, type='scatter', markersize=100, marker='^', color='b'),
-                mpf.make_addplot(signals_h, type='scatter', markersize=100, marker='^', color='r'),
-            ]
-
-    mpf.plot(dataset, type='candle',mav=(3,6,9), addplot=apds)
 
 def initialize():
     global settings
@@ -338,6 +335,6 @@ if __name__ == "__main__":
     get_training_history_loss_plot(ax, history)
     get_training_history_acc_plot(ax, history)
     plt.show()
-    predicted_result = start_predict(model)
-    show_predict_result(predicted_result)
+    
+    start_predict().show()
     print("All done!")
