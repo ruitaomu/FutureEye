@@ -63,19 +63,25 @@ def event_automark_changed(automark):
     else:
         return gr.Checkbox.update(value=False, interactive=False), gr.Number.update(value=1, interactive=False)
         
-
+def generate_figure(dataframe, signals_buy, signals_sell):
+    fig = go.Figure(data=[go.Candlestick(name="Price", x=pd.to_datetime(dataframe['Date']),
+                open=dataframe['Open'],
+                high=dataframe['High'],
+                low=dataframe['Low'],
+                close=dataframe['Close'])])
+    fig.add_trace(go.Scatter(name="Low", x=pd.to_datetime(dataframe['Date']), y=signals_buy,mode="markers+text",marker=dict(symbol='triangle-down-open', size = 12, color="blue")))
+    fig.add_trace(go.Scatter(name="High", x=pd.to_datetime(dataframe['Date']),y=signals_sell,mode="markers+text",marker=dict(symbol='star-open', size = 12, color="darkred")))
+    return fig
+    
 def start_predict(floating_point_adj):
     settings["FLOATING_POINT_ADJUSTMENT"] = floating_point_adj
     cfg.save_settings(settings)
     df, signals_buy, signals_sell = predict.predict(settings)
-    fig = go.Figure(data=[go.Candlestick(name="Price", x=pd.to_datetime(df['Date']),
-                open=df['Open'],
-                high=df['High'],
-                low=df['Low'],
-                close=df['Close'])])
-    fig.add_trace(go.Scatter(name="Low", x=pd.to_datetime(df['Date']), y=signals_buy,mode="markers+text",marker=dict(symbol='triangle-down-open', size = 12, color="blue")))
-    fig.add_trace(go.Scatter(name="High", x=pd.to_datetime(df['Date']),y=signals_sell,mode="markers+text",marker=dict(symbol='triangle-down-open', size = 12, color="darkred")))
-    return fig
+    return generate_figure(df, signals_buy, signals_sell)
+
+def start_predict_by_model_name(model_name, pred_setting):
+    df, signals_buy, signals_sell = predict.predict(pred_setting, False , model_name)
+    return generate_figure(df, signals_buy, signals_sell)
 
 def snapshot_model(name):
     if len(name) == 0:
@@ -105,6 +111,34 @@ def snapshot_model(name):
     
     shutil.copy(settings["MODEL_FILE_NAME"], destination_file)
     
+# 从 CSV 文件中读取数据，并将其转换为 DataFrame
+def read_snapshot_table(file_path):
+    if os.path.exists(file_path):
+        global models_df
+        models_df = pd.read_csv(file_path)
+        return models_df
+    else:
+        return None
+
+def on_select(evt: gr.SelectData):
+    index = evt.index[0]
+    name = models_df["Name"][index]
+    name = f"{cfg.SNAPSHOT_SUBDIR}/{name}"
+    temp_setting = settings.copy()
+    temp_setting["N_STEPS"] = int(models_df["Steps"][index])
+    temp_setting["FEATURE_OFFSET"] = int(models_df["Feature Offset"][index])
+    temp_setting["MODEL_TYPE"] = models_df["Model Type"][index]
+    temp_setting["EPOCHS"] = int(models_df["EPOCH"][index])
+    temp_setting["BATCH_SIZE"] = int(models_df["Batch Size"][index])
+    temp_setting["FLOATING_POINT_ADJUSTMENT"] = False
+    features_set = eval(models_df["Feature Set"][index])
+    temp_setting["FEATURES_SET"] = features_set
+    return start_predict_by_model_name(name, temp_setting)
+
+def on_refresh():
+    return gr.DataFrame(label="输出结果", value=read_snapshot_table(f"{cfg.SNAPSHOT_SUBDIR}/{cfg.MODELINFO_FILE}"))
+
+    
 settings = cfg.load_settings()
 with gr.Blocks() as interface:
     with gr.Row():
@@ -130,8 +164,7 @@ with gr.Blocks() as interface:
             model_type = gr.Dropdown(label="MODEL_TYPE", choices=["SimpleRNN", "GRU", "LSTM"], value=lambda: settings["MODEL_TYPE"])
             features_set = gr.CheckboxGroup(label="FEATURES_SET", choices=cfg.DEFAULT_SETTINGS["FEATURES_SET"], value=lambda: settings["FEATURES_SET"])
             train = gr.Button(value="Train")
-            snapshot_name = gr.Textbox(label="SNAPSHOT_NAME", value="")
-            snapshot = gr.Button(value="Snapshot")
+            
     with gr.Row():
         train_res_plot = gr.Plot(visible=True)
     with gr.Row():
@@ -144,8 +177,18 @@ with gr.Blocks() as interface:
     with gr.Row():
         floating_point_adj = gr.Checkbox(label="FLOATING_POINT_ADJUSTMENT", value=lambda: settings["FLOATING_POINT_ADJUSTMENT"])
         predict_btn = gr.Button(value="Predict")
+    
     with gr.Row():
         predict_plt = gr.Plot(visible=True)
+    with gr.Row():
+        snapshot_name = gr.Textbox(label="SNAPSHOT_NAME", value="")
+        snapshot = gr.Button(value="Snapshot")
+    with gr.Row():
+        csv_output = gr.DataFrame(label="Model Snapshots", value=read_snapshot_table(f"{cfg.SNAPSHOT_SUBDIR}/{cfg.MODELINFO_FILE}"))
+        csv_output.select(on_select, inputs=None, outputs=predict_plt)
+    with gr.Row():
+        csv_refresh = gr.Button(value="Refresh")
+        csv_refresh.click(on_refresh, inputs=None, outputs=csv_output)
 
     auto_mark.change(event_automark_changed, inputs=[auto_mark], outputs=[floating_point_adj, total_sample_files])  
     save.click(update_settings, inputs=[total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark, floating_point_adj, predict_source_file],

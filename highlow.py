@@ -124,19 +124,25 @@ def process_data_file(data_file_name):
     unscaled_low_samples = list()
 
     for i in range(len(high_indeces)):
+        if high_indeces[i]-N_STEPS+FEATURE_OFFSET < 0:
+            continue
         h = dataset.loc[high_indeces[i]-N_STEPS+FEATURE_OFFSET : high_indeces[i]-1+FEATURE_OFFSET, settings["FEATURES_SET"]].to_numpy().flatten().reshape(-1, 1)
         #设定缩放器
+        scope = dataset.loc[high_indeces[i]-cfg.N_SCOPE : high_indeces[i]+cfg.N_SCOPE, settings["FEATURES_SET"]].to_numpy().flatten().reshape(-1, 1)
         scaler = MinMaxScaler(feature_range=(0,1))
-        scaler.fit(np.array([np.min(h), np.max(h)]).reshape(-1, 1)) 
+        scaler.fit(np.array([np.min(scope), np.max(scope)]).reshape(-1, 1)) 
         unscaled_high_samples.append(np.array(h).reshape(-1, FEATURES))
         h = scaler.transform(h) #缩放
         scaled_high_samples.append(np.array(h).reshape(-1, FEATURES))
 
     for i in range(len(low_indeces)):
+        if low_indeces[i]-N_STEPS+FEATURE_OFFSET < 0:
+            continue
         l = dataset.loc[low_indeces[i]-N_STEPS+FEATURE_OFFSET : low_indeces[i]-1+FEATURE_OFFSET, settings["FEATURES_SET"]].to_numpy().flatten().reshape(-1, 1)
         #设定缩放器
+        scope = dataset.loc[low_indeces[i]-cfg.N_SCOPE : low_indeces[i]+cfg.N_SCOPE, settings["FEATURES_SET"]].to_numpy().flatten().reshape(-1, 1)
         scaler = MinMaxScaler(feature_range=(0,1))
-        scaler.fit(np.array([np.min(l), np.max(l)]).reshape(-1, 1))    
+        scaler.fit(np.array([np.min(scope), np.max(scope)]).reshape(-1, 1))    
         unscaled_low_samples.append(np.array(l).reshape(-1, FEATURES))
         l = scaler.transform(l) #缩放
         scaled_low_samples.append(np.array(l).reshape(-1, FEATURES))
@@ -268,29 +274,6 @@ def start_predict():
     fig.add_trace(go.Scatter(x=pd.to_datetime(df['Date']),y=signals_sell,mode="markers+text",marker=dict(symbol='triangle-down-open', size = 12, color="darkred")))
     return fig
 
-def make_top_signals(signals, price, n_steps):
-    signal   = []
-    i = 0
-    for value in price:
-        if i >= n_steps and signals[i-n_steps] > 0.99:
-            signal.append(value)
-        else:
-            signal.append(np.nan)
-        i = i + 1
-    return signal
-
-def make_bottom_signals(signals, price, n_steps):
-    signal   = []
-    i = 0
-    for value in price:
-        if i >= n_steps and signals[i-n_steps] < 0.01:
-            signal.append(value)
-        else:
-            signal.append(np.nan)
-        
-        i = i + 1
-    return signal
-
 def initialize():
     global settings
     settings = cfg.load_settings()
@@ -336,5 +319,5 @@ if __name__ == "__main__":
     get_training_history_acc_plot(ax, history)
     plt.show()
     
-    start_predict().show()
+    #start_predict().show()
     print("All done!")

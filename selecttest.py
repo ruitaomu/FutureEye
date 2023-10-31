@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
 import config
+from datetime import datetime, timedelta
 
-def make(year, month, date):
+def make(year, month, date, days=0):
     settings = config.load_settings()
     df = pd.read_csv(settings["PREDICT_SOURCE_FILE"])
 
@@ -10,8 +11,8 @@ def make(year, month, date):
     df["Date"] = pd.to_datetime(df["Date"])
 
     # 指定时间范围
-    start_date = f"{year}-{month}-{date} 09:30:00"
-    end_date = f"{year}-{month}-{date} 16:00:00"
+    start_date = datetime(year, month, date, 9, 30, 0)
+    end_date = datetime(year, month, date, 16, 0, 0) + timedelta(days=days)
 
     # 选择指定时间范围内的数据行
     selected_rows = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
@@ -27,4 +28,4 @@ def make(year, month, date):
     
     
 if __name__ == "__main__":
-    make(2021,3,20)
+    make(2022,11,15,3)

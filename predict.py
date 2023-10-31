@@ -7,17 +7,22 @@ import config
 
 
 buy_price_stack = []
-EXECUTION_BUYING_ADJ_MA = True
-EXECUTION_SELLING_ADJ_MA = True
+EXECUTION_BUYING_ADJ_MA = False
+EXECUTION_SELLING_ADJ_MA = False
 EXECUTION_BUYING_ADJ_ONLYONCE = False
+EXECUTION_MUST_SEE_CONFIRM = False
+MA_ADJ_VALUE = 26
+
+THRESHOLD_H = 0.99999
+THRESHOLD_L = 0.00001
 
 def test_X_sequence(sequence, n_steps, features):
     X = list()
     dummy = np.full((n_steps, features), np.nan).reshape(-1, features)
-    for i in range(n_steps):
+    for i in range(config.N_SCOPE):
         X.append(dummy)
 
-    for i in range(len(sequence)):
+    for i in range(config.N_SCOPE-n_steps, len(sequence)):
         end_ix = i + n_steps
         if end_ix > len(sequence) - 1:
             break
@@ -25,7 +30,8 @@ def test_X_sequence(sequence, n_steps, features):
         
         seq_x = seq_x.flatten().reshape(-1, 1)
         scaler = MinMaxScaler(feature_range=(0,1))
-        scaler.fit(np.array([np.min(seq_x), np.max(seq_x)]).reshape(-1, 1))
+        scope = sequence[i-(config.N_SCOPE-n_steps):end_ix]
+        scaler.fit(np.array([np.min(scope), np.max(scope)]).reshape(-1, 1))
         seq_x = scaler.transform(seq_x)
         seq_x = np.array(seq_x).reshape(-1, features)
         X.append(seq_x)
@@ -68,7 +74,7 @@ def predict(settings, if_make_index=False, use_model_name=None):
     
     
     X_test, dataset = process_test_file(settings, if_make_index)
-    X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], features)
+    X_test = X_test.reshape(X_test.shape[0], settings["N_STEPS"], features)
     if use_model_name == None:
         model = keras.models.load_model(settings["MODEL_FILE_NAME"])
     else:
@@ -85,51 +91,82 @@ def predict(settings, if_make_index=False, use_model_name=None):
         sample = X_test[i+OFFSET]
         sample = sample.reshape(1,sample.shape[0],sample.shape[1])
         predicted_result = model.predict(sample)
-        signal = execution(predicted_result, dataset, i, settings["N_STEPS"])
-        if signal == 0:
-            signals_l.append(dataset['Open'][i])
+        execution_price = execution(predicted_result, dataset, i, settings["N_STEPS"])
+        if execution_price < 0:
+            signals_l.append(-execution_price)
         else:
             signals_l.append(np.nan)
 
-        if signal == 1:
-            signals_h.append(dataset['Open'][i])
+        if execution_price > 0:
+            signals_h.append(execution_price)
         else:
             signals_h.append(np.nan)
 
     return dataset, signals_l, signals_h
     
+last_predicted_result = 0.0
 def execution(predicted_result, dataset, i, n_steps):
-    global buy_price_stack
-    price = dataset['Open'][i]
+    global buy_price_stack, last_predicted_result
     
-    signal = -1
-    if predicted_result < 0.01:
+    price = open_price = dataset['Open'][i]
+    last_close = dataset['Close'][i-1]
+    last_ma = moving_avg(dataset, i-1, MA_ADJ_VALUE)
+    
+    if EXECUTION_MUST_SEE_CONFIRM:
+        if last_predicted_result < THRESHOLD_L and last_predicted_result > 0 and dataset['Close'][i-1] > dataset['Open'][i-1]:
+            last_predicted_result = 0.0
+            return -price
+        
+        if last_predicted_result > THRESHOLD_H and dataset['Close'][i-1] < dataset['Open'][i-1]:
+            last_predicted_result = 0.0
+            return price
+        
+    if predicted_result < THRESHOLD_L:
         if EXECUTION_BUYING_ADJ_MA:
-            if dataset['Close'][i-1] >= moving_avg(dataset, i-1, 2) or dataset['Open'][i] >= moving_avg(dataset, i-1, 2):
-                return -1
+            if last_close >= last_ma or open_price >= last_ma:
+                return 0
             
         if EXECUTION_BUYING_ADJ_ONLYONCE:
             if not buy_price_stack:
-                signal = 0
                 buy_price_stack.append(price)
             elif buy_price_stack[-1] > price:
-                signal = 0
                 buy_price_stack.append(price)
+            else:
+                last_predicted_result = 0.0
+                return 0
+            
+        last_predicted_result = predicted_result
+        if EXECUTION_MUST_SEE_CONFIRM:
+            return 0
         else:
-            signal = 0
-    elif predicted_result > 0.99:
+            return -price
+        
+    elif predicted_result > THRESHOLD_H:
         if EXECUTION_SELLING_ADJ_MA:
-            if dataset['Close'][i-1] <= moving_avg(dataset, i-1, 2) or dataset['Open'][i] <= moving_avg(dataset, i-1, 2):
-                return -1
+            if last_close <= last_ma or open_price <= last_ma:
+                return 0
+            
         if EXECUTION_BUYING_ADJ_ONLYONCE:
             if buy_price_stack:
+                confirm = False
                 while buy_price_stack and buy_price_stack[-1] < price:
-                    signal = 1
+                    confirm = True
                     buy_price_stack.pop()
+                if not confirm:
+                    last_predicted_result = 0.0
+                    return 0
+            else:
+                last_predicted_result = 0.0
+                return 0
+        
+        last_predicted_result = predicted_result
+        
+        if EXECUTION_MUST_SEE_CONFIRM:
+            return 0
         else:
-            signal = 1
-            
-    return signal 
+            return price
+    else:
+        return 0 
             
             
         
@@ -141,4 +178,4 @@ if __name__ == "__main__":
             mpf.make_addplot(l, type='scatter', markersize=100, marker='^', color='b'),
             mpf.make_addplot(h, type='scatter', markersize=100, marker='^', color='r'),
             ]
-    mpf.plot(dataset, type='candle',mav=(2,3,6,9), addplot=apds)
+    mpf.plot(dataset, type='candle',mav=(2), addplot=apds)

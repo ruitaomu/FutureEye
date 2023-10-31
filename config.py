@@ -4,6 +4,8 @@ TRAIN_DATA_SUBDIR = "data"
 SNAPSHOT_SUBDIR = "candidates"
 MODELINFO_FILE = "modelinfo.csv"
 
+N_SCOPE = 100
+
 #训练集的数据文件总数(文件名后缀从1~TOTAL_SAMPLE_FILES)
 # 默认参数值
 DEFAULT_SETTINGS = {
