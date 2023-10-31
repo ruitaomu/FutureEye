@@ -7,11 +7,6 @@ import config
 
 
 buy_price_stack = []
-EXECUTION_BUYING_ADJ_MA = False
-EXECUTION_SELLING_ADJ_MA = False
-EXECUTION_BUYING_ADJ_ONLYONCE = False
-EXECUTION_MUST_SEE_CONFIRM = False
-MA_ADJ_VALUE = 26
 
 THRESHOLD_H = 0.99999
 THRESHOLD_L = 0.00001
@@ -65,7 +60,7 @@ def predict(settings, if_make_index=False, use_model_name=None):
     
     buy_price_stack = []
     features = len(settings["FEATURES_SET"])
-
+    
     #When OFFSET == 0, the predicted results are real happenning. Otherwise, it simulated by ideal situation
     if settings["FLOATING_POINT_ADJUSTMENT"]:
         OFFSET = settings["FEATURE_OFFSET"] - 1
@@ -91,7 +86,7 @@ def predict(settings, if_make_index=False, use_model_name=None):
         sample = X_test[i+OFFSET]
         sample = sample.reshape(1,sample.shape[0],sample.shape[1])
         predicted_result = model.predict(sample)
-        execution_price = execution(predicted_result, dataset, i, settings["N_STEPS"])
+        execution_price = execution(settings, predicted_result, dataset, i, settings["N_STEPS"])
         if execution_price < 0:
             signals_l.append(-execution_price)
         else:
@@ -105,8 +100,14 @@ def predict(settings, if_make_index=False, use_model_name=None):
     return dataset, signals_l, signals_h
     
 last_predicted_result = 0.0
-def execution(predicted_result, dataset, i, n_steps):
+def execution(settings, predicted_result, dataset, i, n_steps):
     global buy_price_stack, last_predicted_result
+    
+    EXECUTION_BUYING_ADJ_MA = settings["EXECUTION_BUYING_ADJ_MA"]
+    EXECUTION_SELLING_ADJ_MA = settings["EXECUTION_SELLING_ADJ_MA"]
+    EXECUTION_BUYING_ADJ_ONLYONCE = settings["EXECUTION_BUYING_ADJ_ONLYONCE"]
+    EXECUTION_MUST_SEE_CONFIRM = settings["EXECUTION_MUST_SEE_CONFIRM"]
+    MA_ADJ_VALUE = settings["MA_ADJ_VALUE"]
     
     price = open_price = dataset['Open'][i]
     last_close = dataset['Close'][i-1]

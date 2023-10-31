@@ -50,7 +50,7 @@ def make_test(year, month, date, predict_source_file):
     settings["TEST_MONTH"] = month
     settings["TEST_DATE"] = date
     cfg.save_settings(settings)
-    df = maketest.make(year, month, date)
+    df = maketest.make(year, month, date, 3)
     return go.Figure(data=[go.Candlestick(x=df['Date'],
                 open=df['Open'],
                 high=df['High'],
@@ -73,8 +73,13 @@ def generate_figure(dataframe, signals_buy, signals_sell):
     fig.add_trace(go.Scatter(name="High", x=pd.to_datetime(dataframe['Date']),y=signals_sell,mode="markers+text",marker=dict(symbol='star-open', size = 12, color="darkred")))
     return fig
     
-def start_predict(floating_point_adj):
+def start_predict(floating_point_adj, exec_buy_adj, exec_sell_adj, exec_buy_onlyonce, exec_must_see_confirm, exec_ma_adj_value):
     settings["FLOATING_POINT_ADJUSTMENT"] = floating_point_adj
+    settings["EXECUTION_BUYING_ADJ_MA"] = exec_buy_adj
+    settings["EXECUTION_SELLING_ADJ_MA"] = exec_sell_adj
+    settings["EXECUTION_BUYING_ADJ_ONLYONCE"] = exec_buy_onlyonce
+    settings["EXECUTION_MUST_SEE_CONFIRM"] = exec_must_see_confirm
+    settings["MA_ADJ_VALUE"] = exec_ma_adj_value
     cfg.save_settings(settings)
     df, signals_buy, signals_sell = predict.predict(settings)
     return generate_figure(df, signals_buy, signals_sell)
@@ -110,6 +115,7 @@ def snapshot_model(name):
     df.to_csv(modelinfo_csv, index=False)
     
     shutil.copy(settings["MODEL_FILE_NAME"], destination_file)
+    on_refresh()
     
 # 从 CSV 文件中读取数据，并将其转换为 DataFrame
 def read_snapshot_table(file_path):
@@ -130,7 +136,6 @@ def on_select(evt: gr.SelectData):
     temp_setting["MODEL_TYPE"] = models_df["Model Type"][index]
     temp_setting["EPOCHS"] = int(models_df["EPOCH"][index])
     temp_setting["BATCH_SIZE"] = int(models_df["Batch Size"][index])
-    temp_setting["FLOATING_POINT_ADJUSTMENT"] = False
     features_set = eval(models_df["Feature Set"][index])
     temp_setting["FEATURES_SET"] = features_set
     return start_predict_by_model_name(name, temp_setting)
@@ -175,7 +180,13 @@ with gr.Blocks() as interface:
         date = gr.Number(label="TEST_DATE", precision=0, minimum=1, maximum=31, value=lambda: settings["TEST_DATE"])
         maketest_btn = gr.Button(value="Make Test File")
     with gr.Row():
-        floating_point_adj = gr.Checkbox(label="FLOATING_POINT_ADJUSTMENT", value=lambda: settings["FLOATING_POINT_ADJUSTMENT"])
+        floating_point_adj = gr.Checkbox(label="SLIDING_POINT_ADJUSTMENT", value=lambda: settings["FLOATING_POINT_ADJUSTMENT"])
+        exec_buy_adj = gr.Checkbox(label="BUYING MA_ADJ", value=lambda: settings["EXECUTION_BUYING_ADJ_MA"])
+        exec_sell_adj = gr.Checkbox(label="SELLING MA_ADJ", value=lambda: settings["EXECUTION_SELLING_ADJ_MA"])
+        exec_buy_onlyonce = gr.Checkbox(label="BUYING ONLYONCE", value=lambda: settings["EXECUTION_BUYING_ADJ_ONLYONCE"])
+        exec_must_see_confirm = gr.Checkbox(label="WAIT CONFIRM", value=lambda: settings["EXECUTION_MUST_SEE_CONFIRM"])
+        exec_ma_adj_value = gr.Number(label="MA_ADJ VALUE", precision=0, minimum=1, value=lambda: settings["MA_ADJ_VALUE"])
+        
         predict_btn = gr.Button(value="Predict")
     
     with gr.Row():
@@ -196,7 +207,7 @@ with gr.Blocks() as interface:
     train.click(start_training, inputs=[total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark, floating_point_adj, predict_source_file], outputs=train_res_plot)
     make.click(make_data, inputs=[total_sample_files, features_set, n_steps, feature_offset, sample_file_pattern, raw_data_file, test_file_name, model_file_name, model_type, epochs, batch_size, auto_mark, floating_point_adj, predict_source_file], outputs=display_box)
     maketest_btn.click(make_test, inputs=[year, month, date, predict_source_file], outputs=predict_plt)
-    predict_btn.click(start_predict, inputs=floating_point_adj, outputs=predict_plt)
+    predict_btn.click(start_predict, inputs=[floating_point_adj, exec_buy_adj, exec_sell_adj, exec_buy_onlyonce, exec_must_see_confirm, exec_ma_adj_value], outputs=predict_plt)
     snapshot.click(snapshot_model, inputs=snapshot_name, outputs=None)
  
 # 运行界面
